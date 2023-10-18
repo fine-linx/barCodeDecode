@@ -6,7 +6,6 @@ import cv2 as cv
 import torch
 from ultralytics import YOLO
 
-
 from BarCodeDecoder import BarCodeDecoder
 from detectAndDecode import DetectAndDecode
 from resnet.CustomResNet import CustomResNet
@@ -14,7 +13,7 @@ from resnet.CustomResNet import CustomResNet
 
 def detectAll(isHalcon=False):
     decoder = DetectAndDecode()
-    folder_path = "../db/barCodeDB2/rotated/unresolved/zbar/cropped/up_sample/"
+    folder_path = "../db/barCodeDB2/"
     file_names = os.listdir(folder_path)
     for file_name in file_names:
         if file_name.endswith(".JPG") or file_name.endswith(".jpg") or file_name.endswith(".png"):
@@ -43,7 +42,7 @@ def main():
     detect_none_path = folder + "detect_none/"
     cropped_path = folder + "cropped/"
     rotated_path = folder + "rotated/"
-    unresolved_path = folder + "unresolved/"
+    unresolved_path = folder + "unresolved/halcon/"
     rect_path = folder + "rect/"
     os.makedirs(detect_none_path, exist_ok=True)
     os.makedirs(cropped_path, exist_ok=True)
@@ -58,14 +57,15 @@ def main():
         if file.endswith(".jpg") or file.endswith(".JPG") or file.endswith(".png"):
             all_count += 1
             file_path = folder + file
-            boxes = decoder.detect(file_path, save_rect=False, save_dir=rect_path)
-            if len(boxes) == 0:
-                # 没有检测到
-                shutil.copy(file_path, detect_none_path + file)
-                result = decoder.decode([cv.imread(file_path)], decoder="halcon", rotate=False)
-            else:
-                cropped = decoder.crop(boxes, save=False, save_dir=cropped_path)
-                result = decoder.decode(cropped, decoder="halcon", save_rotated=False, save_dir=rotated_path)
+            # boxes = decoder.detect(file_path, save_rect=False, save_dir=rect_path)
+            # if len(boxes) == 0:
+            #     # 没有检测到
+            #     shutil.copy(file_path, detect_none_path + file)
+            #     result = decoder.decode([cv.imread(file_path)], decoder="zbar", rotate=False)
+            # else:
+            #     cropped = decoder.crop(boxes, save=False, save_dir=cropped_path)
+            #     result = decoder.decode(cropped, decoder="zbar", save_rotated=False, save_dir=rotated_path)
+            result = decoder.detectAndDecode(file_path)
             if len(result) > 0:
                 right_count += 1
             else:

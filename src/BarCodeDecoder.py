@@ -48,6 +48,18 @@ class BarCodeDecoder:
         self.sr_model = sr_model
         return self
 
+    def detectAndDecode(self, source, decoder="halcon"):
+        if self._halcon_handle is None and decoder == "halcon":
+            self._halcon_handle = halcon.create_bar_code_model([], [])
+        image = cv.imread(source)
+        result = self._decode(image, decoder)
+        if not result:
+            boxes = self.detect(source)
+            if len(boxes) > 0:
+                cropped = self.crop(boxes)
+                result = self.decode(cropped, decoder)
+        return result
+
     def detect(self, source: str, save_rect: bool = False, save_dir: str = None) -> list[dict[str, int | float]]:
         """
         使用yolo对图片中的条形码进行检测
