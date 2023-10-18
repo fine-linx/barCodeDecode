@@ -1,0 +1,2 @@
+# 图片大小
+IMAGE_MIN_SIDE = 1024
