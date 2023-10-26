@@ -1,10 +1,10 @@
 task: detect
 mode: train
-model: runs/detect/train4/weights/best.pt
+model: weights/best_v2.pt
 data: datasets/barCode.yaml
-epochs: 100
+epochs: 200
 patience: 50
-batch: 16
+batch: 2
 imgsz: 640
 save: true
 save_period: -1
@@ -12,7 +12,7 @@ cache: false
 device: null
 workers: 8
 project: null
-name: null
+name: train5
 exist_ok: false
 pretrained: true
 optimizer: auto

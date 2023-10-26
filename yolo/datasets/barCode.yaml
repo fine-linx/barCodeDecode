@@ -1,0 +1,8 @@
+# barCode
+train: D:\work\barCodeDecode\yolo\datasets\barCode\train
+val: D:\work\barCodeDecode\yolo\datasets\barCode\valid
+test: D:\work\barCodeDecode\yolo\datasets\barCode\test
+
+# classes
+names:
+  0: barCode

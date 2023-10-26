@@ -100,10 +100,11 @@ class BarCodeDecoder:
 
     @staticmethod
     def _save_rect(image: cv.Mat, boxes: list[dict[str, int | float]], file_name: str):
+        img = image.copy()
         for box in boxes:
             x1, y1, x2, y2 = box["x1"], box["y1"], box["x2"], box["y2"]
-            image = cv.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv.imwrite(file_name, image, [cv.IMWRITE_JPEG_QUALITY, 100])
+            img = cv.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv.imwrite(file_name, img, [cv.IMWRITE_JPEG_QUALITY, 100])
 
     def crop(self, boxes: list[dict[str, int | float]], source: cv.Mat = None, save: bool = False, save_dir: str = None,
              confidence: float = 0.5):
