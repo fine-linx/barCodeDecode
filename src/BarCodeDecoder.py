@@ -91,9 +91,9 @@ class BarCodeDecoder:
             file_name = self._image_path.split("/")[-1]
             ext = "." + file_name.split(".")[-1]
             if save_dir is None:
-                save_name = self._image_path.replace(ext, "_rect.jpg")
+                save_name = self._image_path.replace(ext, "_rect" + ext)
             else:
-                save_name = file_name.replace(ext, "_rect.jpg")
+                save_name = file_name.replace(ext, "_rect" + ext)
                 save_name = save_dir + "/" + save_name
             self._save_rect(self._image, result, save_name)
         return result
