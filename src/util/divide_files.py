@@ -3,7 +3,7 @@ import shutil
 
 if __name__ == '__main__':
     # 指定原始文件夹路径和目标文件夹路径
-    source_folder = "../../db/20231023"
+    source_folder = "../../db/20231019"
     # target_folder =
 
     # # 创建目标文件夹

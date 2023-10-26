@@ -70,7 +70,7 @@ class BarCodeDecoder:
         """
         image, coeff_expansion = self._preprocess(source)
         if self.yolo_model is None:
-            self.yolo_model = YOLO("../yolo/weights/best_v1.pt")
+            self.yolo_model = YOLO("../yolo/weights/best_v2.pt")
         detect_results = self.yolo_model.predict(source=image)
         result = []
         for r in detect_results:
@@ -123,7 +123,7 @@ class BarCodeDecoder:
         result = []
         for idx, r in enumerate(boxes):
             cropped_image = source[r["y1"]:r["y2"], r["x1"]:r["x2"]]
-            if r["confidence"] > confidence:
+            if r["confidence"] >= confidence:
                 result.append(cropped_image)
                 if save:
                     file_name = self._image_path.split("/")[-1]

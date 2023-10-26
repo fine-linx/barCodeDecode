@@ -25,7 +25,7 @@ def detectAll(isHalcon=False):
 
 def main():
     # yolo模型
-    yolo_model = YOLO("../yolo/weights/best_v2.pt")
+    yolo_model = YOLO("../yolo/weights/best_v3.pt")
     # 区域估计模型
     re_model = CustomResNet()
     re_model.load_state_dict(torch.load("../resnet/checkpoints/adam_best_v1.pt"))
@@ -63,20 +63,25 @@ def main():
             if len(boxes) == 0:
                 # 没有检测到
                 shutil.copy(file_path, detect_none_path + file)
-                result = decoder.decode([cv.imread(file_path)], decoder=decode_method, rotate=True)
-            else:
-                cropped = decoder.crop(boxes, save=True, save_dir=cropped_path)
-                result = decoder.decode(cropped, decoder=decode_method, save_rotated=True, save_dir=rotated_path)
-            # result = decoder.detectAndDecode(file_path)
-            if len(result) > 0:
-                right_count += 1
-            else:
-                shutil.copy(file_path, unresolved_path + file)
-            print(file_path, end="\t")
-            print(result)
+                # result = decoder.decode([cv.imread(file_path)], decoder=decode_method, rotate=True)
+            # else:
+            #     cropped = decoder.crop(boxes, save=True, save_dir=cropped_path)
+            #     result = decoder.decode(cropped, decoder=decode_method, save_rotated=True, save_dir=rotated_path)
+            # # result = decoder.detectAndDecode(file_path)
+            # if len(result) > 0:
+            #     right_count += 1
+            # else:
+            #     shutil.copy(file_path, unresolved_path + file)
+            # print(file_path, end="\t")
+            # print(result)
     print("all: ", all_count)
     print("right: ", right_count)
     print("acc: ", right_count / all_count if all_count > 0 else 0)
+
+
+def detectBarCode():
+    yolo_model = YOLO("../yolo/weights/best_v3.pt")
+    folder = "../db/20231023/folder_2/"
 
 
 if __name__ == '__main__':
