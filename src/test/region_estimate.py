@@ -61,14 +61,14 @@ if __name__ == '__main__':
     re_model = CustomResNet()
     re_model.load_state_dict(torch.load("../../resnet/checkpoints/adam_best_v1.pt", map_location="cpu"))
     re.set_re_model(re_model)
-    folder = "../../db/20231024/unresolved/halcon/rotated/"
+    folder = "../../db/final_unresolved/rotated/"
     files = os.listdir(folder)
     all_count = 0
     right_count = 0
     for file in files:
         if file.endswith(".png"):
             all_count += 1
-            res, _ = re.estimate(folder + file, save_rect=True, save_cropped=True, decoder="halcon")
+            res, _ = re.estimate(folder + file, save_rect=False, save_cropped=True, decoder="halcon")
             if len(res) > 0:
                 right_count += 1
             print(file, end="\t")

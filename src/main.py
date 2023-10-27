@@ -13,7 +13,7 @@ from resnet.CustomResNet import CustomResNet
 
 def detectAll(isHalcon=False):
     decoder = DetectAndDecode()
-    folder_path = "../db/20231023/folder_3/"
+    folder_path = "../db/final_unresolved/rotated/"
     file_names = os.listdir(folder_path)
     for file_name in file_names:
         if file_name.endswith(".JPG") or file_name.endswith(".jpg") or file_name.endswith(".png"):

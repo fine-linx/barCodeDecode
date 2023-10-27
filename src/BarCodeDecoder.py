@@ -4,6 +4,7 @@ from typing import Any
 import cv2 as cv
 import halcon
 import pyzbar.pyzbar as pyzbar
+import pyzxing
 import torch
 from PIL import Image
 from numpy import ndarray, dtype, generic
@@ -35,6 +36,8 @@ class BarCodeDecoder:
         self.re_preprocess = None
         # 区域估计偏移值
         self.re_offset = 5
+        # zxing解码器
+        self.zxing_reader = pyzxing.BarCodeReader()
 
     def set_yolo_model(self, yolo_model: nn.Module):
         self.yolo_model = yolo_model
@@ -60,6 +63,8 @@ class BarCodeDecoder:
                 result = self.decode(cropped, "halcon")
                 if not result:
                     result = self.decode(cropped, "zbar")
+                if not result:
+                    result = self.decode(cropped, "zxing")
             else:
                 print("no detection\t", source)
         return result
@@ -236,6 +241,11 @@ class BarCodeDecoder:
             res = pyzbar.decode(image)
             for r in res:
                 data = r.data.decode("utf-8")
+                result.append(data)
+        elif decoder == "zxing":
+            barcode = self.zxing_reader.decode_array(image)
+            data = barcode[0].get("parsed")
+            if data:
                 result.append(data)
         else:
             raise Exception("unsupported decoder")
