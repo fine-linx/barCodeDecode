@@ -4,7 +4,7 @@ import random
 import shutil
 
 # 设置随机数种子
-random.seed(123)
+random.seed(1)
 
 # 定义文件夹路径
 root_dir = "D:/work/barCodeDecode/yolo/datasets/barCode/all"
@@ -12,9 +12,9 @@ image_dir = os.path.join(root_dir, 'images')
 label_dir = os.path.join(root_dir, 'labels')
 output_dir = "D:/work/barCodeDecode/yolo/datasets/barCode"
 # 定义训练集、验证集和测试集比例
-train_ratio = 0.7
-valid_ratio = 0.15
-test_ratio = 0.15
+train_ratio = 0.8
+valid_ratio = 0.1
+test_ratio = 0.1
 
 # 获取所有图像文件和标签文件的文件名（不包括文件扩展名）
 image_filenames = [os.path.splitext(f)[0] for f in os.listdir(image_dir)]

@@ -60,6 +60,8 @@ class BarCodeDecoder:
                 result = self.decode(cropped, "halcon")
                 if not result:
                     result = self.decode(cropped, "zbar")
+            else:
+                print("no detection\t", source)
         return result
 
     def detect(self, source: str, save_rect: bool = False, save_dir: str = None) -> list[dict[str, int | float]]:
@@ -72,7 +74,7 @@ class BarCodeDecoder:
         """
         image, coeff_expansion = self._preprocess(source)
         if self.yolo_model is None:
-            self.yolo_model = YOLO("../yolo/weights/best_v2.pt")
+            self.yolo_model = YOLO("../yolo/weights/best_v3.pt")
         detect_results = self.yolo_model.predict(source=image)
         result = []
         for r in detect_results:
@@ -163,6 +165,15 @@ class BarCodeDecoder:
             result += result1
         return result
 
+    def _decode_after_optimization(self, src, decoder):
+        optimizations = [(True, True, 1), (True, True, 2), (True, False, 1), (False, True, 1)]
+        for re, sr, order in optimizations:
+            optimized_src = self.optim(src, re, sr, order)
+            result = self._decode(optimized_src, decoder)
+            if result:
+                return result
+        return []
+
     def optim(self, source: ndarray, re=True, sr=True, order=1):
         if re and sr:
             if order == 1:
@@ -175,15 +186,6 @@ class BarCodeDecoder:
             return self.up_sample(source)
         else:
             return source
-
-    def _decode_after_optimization(self, src, decoder):
-        optimizations = [(True, True, 1), (True, True, 2), (True, False, 1), (False, True, 1)]
-        for re, sr, order in optimizations:
-            optimized_src = self.optim(src, re, sr, order)
-            result = self._decode(optimized_src, decoder)
-            if result:
-                return result
-        return []
 
     def region_estimate(self, source: ndarray, rect: bool = True):
         assert self.re_model is not None

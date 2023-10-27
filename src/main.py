@@ -13,7 +13,7 @@ from resnet.CustomResNet import CustomResNet
 
 def detectAll(isHalcon=False):
     decoder = DetectAndDecode()
-    folder_path = "../db/20231024/unresolved/halcon/"
+    folder_path = "../db/20231023/folder_3/"
     file_names = os.listdir(folder_path)
     for file_name in file_names:
         if file_name.endswith(".JPG") or file_name.endswith(".jpg") or file_name.endswith(".png"):
@@ -25,10 +25,10 @@ def detectAll(isHalcon=False):
 
 def main():
     # yolo模型
-    yolo_model = YOLO("../yolo/weights/best_v3.pt")
+    yolo_model = YOLO("../yolo/weights/best_v4.pt")
     # 区域估计模型
     re_model = CustomResNet()
-    re_model.load_state_dict(torch.load("../resnet/checkpoints/adam_best_v1.pt", map_location="cpu"))
+    re_model.load_state_dict(torch.load("../resnet/checkpoints/adam_best_v1.pt"))
     # 超分模型
     sr_model_path = "../sr_models/ESPCN/ESPCN_x2.pb"
     sr_model = cv.dnn_superres.DnnSuperResImpl.create()
@@ -39,7 +39,7 @@ def main():
     decoder.set_yolo_model(yolo_model).set_sr_model(sr_model).set_re_model(re_model)
 
     decode_method = "halcon"
-    folder = "../db/20231024/"
+    folder = "E:/work/barCode/20231026/folder_2/"
     detect_none_path = folder + "detect_none/"
     cropped_path = folder + "cropped/"
     rotated_path = folder + "rotated/"
@@ -71,6 +71,7 @@ def main():
                 right_count += 1
             else:
                 shutil.copy(file_path, unresolved_path + file)
+            print(all_count, end="\t")
             print(file_path, end="\t")
             print(result)
     print("all: ", all_count)
