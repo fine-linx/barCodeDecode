@@ -24,7 +24,7 @@ class DetectAndDecode:
             # width, height = ha.get_image_size(grayImage)
             # grayImage = ha.emphasize(grayImage, width[0], height[0], 1)
             barCodeHandle = ha.create_bar_code_model([], [])
-            symbolRegions, content = ha.find_bar_code(grayImage, barCodeHandle, ['EAN-13', 'Code 128'])
+            symbolRegions, content = ha.find_bar_code(grayImage, barCodeHandle, ['EAN-13', 'Code 128', 'auto'])
             # if label in content:
             if content:
                 self.right_count += 1

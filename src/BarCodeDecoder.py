@@ -11,8 +11,8 @@ from torch import nn
 from torchvision import transforms
 from ultralytics import YOLO
 
-from util.constants import IMAGE_MIN_SIDE
-from util.util import resize
+from src.util.constants import IMAGE_MIN_SIDE
+from src.util.util import resize
 
 
 class BarCodeDecoder:
@@ -57,7 +57,9 @@ class BarCodeDecoder:
             boxes = self.detect(source)
             if len(boxes) > 0:
                 cropped = self.crop(boxes)
-                result = self.decode(cropped, decoder)
+                result = self.decode(cropped, "halcon")
+                if not result:
+                    result = self.decode(cropped, "zbar")
         return result
 
     def detect(self, source: str, save_rect: bool = False, save_dir: str = None) -> list[dict[str, int | float]]:
@@ -157,15 +159,33 @@ class BarCodeDecoder:
                     cv.imwrite(save_dir + "/" + save_name, src, [cv.IMWRITE_PNG_COMPRESSION, 0])
             result1 = self._decode(src, decoder)
             if not result1:
-                # 进一步确定位置
-                re_image = self.region_estimate(src)
-                # 上采样超分
-                sr_image = self.up_sample(re_image)
-                result1 = self._decode(sr_image, decoder)
+                result1 = self._decode_after_optimization(src, decoder)
             result += result1
         return result
 
-    def region_estimate(self, source: ndarray):
+    def optim(self, source: ndarray, re=True, sr=True, order=1):
+        if re and sr:
+            if order == 1:
+                return self.up_sample(self.region_estimate(source))
+            else:
+                return self.region_estimate(self.up_sample(source))
+        elif re:
+            return self.region_estimate(source)
+        elif sr:
+            return self.up_sample(source)
+        else:
+            return source
+
+    def _decode_after_optimization(self, src, decoder):
+        optimizations = [(True, True, 1), (True, True, 2), (True, False, 1), (False, True, 1)]
+        for re, sr, order in optimizations:
+            optimized_src = self.optim(src, re, sr, order)
+            result = self._decode(optimized_src, decoder)
+            if result:
+                return result
+        return []
+
+    def region_estimate(self, source: ndarray, rect: bool = True):
         assert self.re_model is not None
         if self.re_preprocess is None:
             self.re_preprocess = transforms.Compose([
@@ -181,10 +201,12 @@ class BarCodeDecoder:
             output = self.re_model(input_image)
         value1, value2, value3, value4 = output[0]
         width, height = source.shape[:2]
-        x1 = int(width * value1 - 0.5 * width * value3 - self.re_offset)
-        x2 = int(width * value1 + 0.5 * width * value3 + self.re_offset)
-        y1 = int(height * value2 - 0.5 * height * value4 - self.re_offset)
-        y2 = int(height * value2 + 0.5 * height * value4 + self.re_offset)
+        x1 = max(0, int(width * value1 - 0.5 * width * value3 - self.re_offset))
+        x2 = min(width, int(width * value1 + 0.5 * width * value3 + self.re_offset))
+        y1 = max(0, int(height * value2 - 0.5 * height * value4 - self.re_offset))
+        y2 = min(height, int(height * value2 + 0.5 * height * value4 + self.re_offset))
+        if rect:
+            source = cv.rectangle(source, (x1, y1), (x2, y2), (0, 255, 0), 2)
         cropped_img = source[y1:y2, x1:x2]
         return cropped_img
 
@@ -201,6 +223,7 @@ class BarCodeDecoder:
         """
         result = []
         if decoder == "halcon":
+            # image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
             image = halcon.himage_from_numpy_array(image)
             gray_image = halcon.rgb1_to_gray(image)
             _, content = halcon.find_bar_code(gray_image, self._halcon_handle, ["EAN-13", "Code 128"])

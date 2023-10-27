@@ -61,7 +61,7 @@ if __name__ == '__main__':
     re_model = CustomResNet()
     re_model.load_state_dict(torch.load("../../resnet/checkpoints/adam_best_v1.pt", map_location="cpu"))
     re.set_re_model(re_model)
-    folder = "../../db/barCodeDB2/rotated/unresolved/halcon/"
+    folder = "../../db/20231024/unresolved/halcon/rotated/"
     files = os.listdir(folder)
     all_count = 0
     right_count = 0

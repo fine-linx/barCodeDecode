@@ -35,7 +35,7 @@ if __name__ == '__main__':
     decoder = UpSample()
     decoder.set_sr_model(sr)
 
-    folder = "../../db/barCodeDB2/rotated/unresolved/halcon/cropped/"
+    folder = "../../db/20231024/unresolved/halcon/rotated/"
     files = os.listdir(folder)
     all_count = 0
     right_count = 0
