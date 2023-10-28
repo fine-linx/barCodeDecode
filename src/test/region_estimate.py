@@ -1,6 +1,7 @@
 import os
 
 import cv2 as cv
+import halcon
 import torch
 from PIL import Image
 from torchvision import transforms
@@ -52,8 +53,16 @@ class RegionEstimator:
             save_dir = source.replace(file_name, "cropped/")
             os.makedirs(save_dir, exist_ok=True)
             cv.imwrite(save_dir + file_name, cropped_img, [cv.IMWRITE_PNG_COMPRESSION, 0])
-        result = self.barCodeDecoder.decode([cropped_img], decoder=decoder, rotate=False)
+        # result = self.barCodeDecoder.decode([cropped_img], decoder=decoder, rotate=False)
+        result = self.barCodeDecoder._decode(cropped_img, decoder=decoder)
         return result, cropped_img
+
+
+def appendResult(result_dict: dict, data: str):
+    if data in result_dict:
+        result_dict[data] += 1
+    else:
+        result_dict[data] = 0
 
 
 if __name__ == '__main__':
@@ -61,18 +70,28 @@ if __name__ == '__main__':
     re_model = CustomResNet()
     re_model.load_state_dict(torch.load("../../resnet/checkpoints/adam_best_v1.pt", map_location="cpu"))
     re.set_re_model(re_model)
-    folder = "../../db/final_unresolved/rotated/"
+    re.barCodeDecoder._halcon_handle = halcon.create_bar_code_model([], [])
+    decode_results = dict()
+    folder = "E:/work/barCode/final_unresolved/rotated/"
+    result_folder = folder + "results/"
+    os.makedirs(result_folder, exist_ok=True)
     files = os.listdir(folder)
     all_count = 0
     right_count = 0
     for file in files:
-        if file.endswith(".png"):
+        if file.endswith(".png") or file.endswith(".JPG"):
             all_count += 1
-            res, _ = re.estimate(folder + file, save_rect=False, save_cropped=True, decoder="halcon")
+            res, image = re.estimate(folder + file, save_rect=False, save_cropped=True, decoder="halcon")
             if len(res) > 0:
                 right_count += 1
+                data = res[0]
+                if len(data) == 13:
+                    appendResult(decode_results, data)
+                    cv.imwrite(result_folder + data + "_" + str(decode_results[data]) + ".png",
+                               image, [cv.IMWRITE_PNG_COMPRESSION, 0])
             print(file, end="\t")
             print(res)
     print("all: ", all_count)
     print("right: ", right_count)
     print("acc: ", right_count / all_count if all_count > 0 else 0)
+    # print(is_valid_ean13("3051846625862"))

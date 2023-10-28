@@ -39,7 +39,7 @@ def main():
     decoder.set_yolo_model(yolo_model).set_sr_model(sr_model).set_re_model(re_model)
 
     decode_method = "halcon"
-    folder = "E:/work/barCode/20231026/folder_2/"
+    folder = "E:/work/barCode/final_unresolved/"
     detect_none_path = folder + "detect_none/"
     cropped_path = folder + "cropped/"
     rotated_path = folder + "rotated/"
@@ -58,15 +58,15 @@ def main():
         if file.endswith(".jpg") or file.endswith(".JPG") or file.endswith(".png") or file.endswith("BMP"):
             all_count += 1
             file_path = folder + file
-            # boxes = decoder.detect(file_path, save_rect=True, save_dir=rect_path)
-            # if len(boxes) == 0:
-            #     # 没有检测到
-            #     shutil.copy(file_path, detect_none_path + file)
-            #     result = decoder.decode([cv.imread(file_path)], decoder=decode_method, rotate=True)
-            # else:
-            #     cropped = decoder.crop(boxes, save=True, save_dir=cropped_path)
-            #     result = decoder.decode(cropped, decoder=decode_method, save_rotated=True, save_dir=rotated_path)
-            result = decoder.detectAndDecode(file_path)
+            boxes = decoder.detect(file_path, save_rect=True, save_dir=rect_path)
+            if len(boxes) == 0:
+                # 没有检测到
+                shutil.copy(file_path, detect_none_path + file)
+                result = decoder.decode([cv.imread(file_path)], decoder=decode_method, rotate=True)
+            else:
+                cropped = decoder.crop(boxes, save=True, save_dir=cropped_path)
+                result = decoder.decode(cropped, decoder=decode_method, save_rotated=True, save_dir=rotated_path)
+            # result = decoder.detectAndDecode(file_path)
             if len(result) > 0:
                 right_count += 1
             else:

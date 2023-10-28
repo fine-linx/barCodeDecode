@@ -38,6 +38,8 @@ class BarCodeDecoder:
         self.re_offset = 5
         # zxing解码器
         self.zxing_reader = pyzxing.BarCodeReader()
+        # 解析结果
+        self.decode_result = dict()
 
     def set_yolo_model(self, yolo_model: nn.Module):
         self.yolo_model = yolo_model
@@ -52,6 +54,7 @@ class BarCodeDecoder:
         return self
 
     def detectAndDecode(self, source, decoder="halcon"):
+        self._image_path = source
         if self._halcon_handle is None and decoder == "halcon":
             self._halcon_handle = halcon.create_bar_code_model([], [])
         image = cv.imread(source)
@@ -231,8 +234,8 @@ class BarCodeDecoder:
         result = []
         if decoder == "halcon":
             # image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
-            image = halcon.himage_from_numpy_array(image)
-            gray_image = halcon.rgb1_to_gray(image)
+            ha_image = halcon.himage_from_numpy_array(image)
+            gray_image = halcon.rgb1_to_gray(ha_image)
             _, content = halcon.find_bar_code(gray_image, self._halcon_handle, ["EAN-13", "Code 128"])
             result += content
         elif decoder == "zbar":
@@ -244,12 +247,26 @@ class BarCodeDecoder:
                 result.append(data)
         elif decoder == "zxing":
             barcode = self.zxing_reader.decode_array(image)
-            data = barcode[0].get("parsed")
-            if data:
-                result.append(data)
+            if barcode:
+                data = barcode[0].get("parsed")
+                if data:
+                    result.append(str(data))
         else:
             raise Exception("unsupported decoder")
+        # for data in result:
+        #     if len(data) == 13:
+        #         self.__appendResult(data)
+        #         file_name = self._image_path.split("/")[-1]
+        #         save_name = self._image_path.replace(file_name, "results/" + data + "_" +
+        #                                              str(self.decode_result[data]) + ".png")
+        #         cv.imwrite(save_name, image, [cv.IMWRITE_PNG_COMPRESSION, 0])
         return result
+
+    def __appendResult(self, data):
+        if data in self.decode_result:
+            self.decode_result[data] += 1
+        else:
+            self.decode_result[data] = 0
 
     def _preprocess(self, source: str) -> tuple[Any, float]:
         """
