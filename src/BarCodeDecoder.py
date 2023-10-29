@@ -12,12 +12,14 @@ from torch import nn
 from torchvision import transforms
 from ultralytics import YOLO
 
+from decode_network.DecodeNet import DecodeNet
 from src.util.constants import IMAGE_MIN_SIDE
-from src.util.util import resize
+from src.util.util import resize, is_valid_ean13
 
 
 class BarCodeDecoder:
-    def __init__(self, yolo_model: nn.Module = None, re_model: nn.Module = None, sr_model: nn.Module = None):
+    def __init__(self, yolo_model: nn.Module = None, re_model: nn.Module = None,
+                 sr_model: nn.Module = None, decode_model: nn.Module = None):
         """
         :param yolo_model: yolo目标检测模型，用于初步检测条形码位置
         :param re_model: region estimation 网络, 用于进一步确定条形码位置
@@ -26,14 +28,15 @@ class BarCodeDecoder:
         self.yolo_model = yolo_model
         self.re_model = re_model
         self.sr_model = sr_model
+        self.decode_model = decode_model
         # 图片
         self._image = None
         # 图片路径，用于保存中间结果
         self._image_path = None
         # halcon条形码识别模型
         self._halcon_handle = None
-        # 区域估计时的预处理器
-        self.re_preprocess = None
+        # resnet的预处理器
+        self.resnet_preprocess = None
         # 区域估计偏移值
         self.re_offset = 5
         # zxing解码器
@@ -51,6 +54,10 @@ class BarCodeDecoder:
 
     def set_sr_model(self, sr_model: nn.Module):
         self.sr_model = sr_model
+        return self
+
+    def set_decode_model(self, decode_model: nn.Module):
+        self.decode_model = decode_model
         return self
 
     def detectAndDecode(self, source, decoder="halcon"):
@@ -168,8 +175,8 @@ class BarCodeDecoder:
                     save_name = file_name.replace(ext, "_rotated_" + str(idx) + ".png")
                     cv.imwrite(save_dir + "/" + save_name, src, [cv.IMWRITE_PNG_COMPRESSION, 0])
             result1 = self._decode(src, decoder)
-            if not result1:
-                result1 = self._decode_after_optimization(src, decoder)
+            # if not result1:
+            #     result1 = self._decode_after_optimization(src, decoder)
             result += result1
         return result
 
@@ -197,14 +204,14 @@ class BarCodeDecoder:
 
     def region_estimate(self, source: ndarray, rect: bool = True):
         assert self.re_model is not None
-        if self.re_preprocess is None:
-            self.re_preprocess = transforms.Compose([
+        if self.resnet_preprocess is None:
+            self.resnet_preprocess = transforms.Compose([
                 transforms.Resize((224, 224)),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             ])
         input_image = Image.fromarray(cv.cvtColor(source, cv.COLOR_BGR2RGB))
-        input_image = self.re_preprocess(input_image)
+        input_image = self.resnet_preprocess(input_image)
         input_image = input_image.unsqueeze(0)
         with torch.no_grad():
             self.re_model.eval()
@@ -251,6 +258,10 @@ class BarCodeDecoder:
                 data = barcode[0].get("parsed")
                 if data:
                     result.append(str(data))
+        elif decoder == "network":
+            data = self.__decode_by_network(image)
+            if is_valid_ean13(data):
+                result.append(data)
         else:
             raise Exception("unsupported decoder")
         # for data in result:
@@ -260,6 +271,29 @@ class BarCodeDecoder:
         #         save_name = self._image_path.replace(file_name, "results/" + data + "_" +
         #                                              str(self.decode_result[data]) + ".png")
         #         cv.imwrite(save_name, image, [cv.IMWRITE_PNG_COMPRESSION, 0])
+        return result
+
+    def __decode_by_network(self, image: ndarray):
+        if self.decode_model is None:
+            self.decode_model = DecodeNet()
+            self.decode_model.load_state_dict(torch.load("../decode_network/checkpoints/adam_best.pt"))
+        if self.resnet_preprocess is None:
+            self.resnet_preprocess = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ])
+        input_image = Image.fromarray(cv.cvtColor(image, cv.COLOR_BGR2RGB))
+        input_image = self.resnet_preprocess(input_image)
+        input_image = input_image.unsqueeze(0)
+        with torch.no_grad():
+            self.decode_model.eval()
+            output = self.decode_model(input_image)
+        output = output.view(-1, 13, 10)
+        output = nn.functional.softmax(output, dim=1)
+        _, predicted = torch.max(output, 2)
+        arr = predicted.squeeze().numpy()
+        result = "".join(map(str, arr))
         return result
 
     def __appendResult(self, data):

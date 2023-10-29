@@ -7,6 +7,7 @@ import torch
 from ultralytics import YOLO
 
 from BarCodeDecoder import BarCodeDecoder
+from decode_network.DecodeNet import DecodeNet
 from detectAndDecode import DetectAndDecode
 from resnet.CustomResNet import CustomResNet
 
@@ -34,11 +35,14 @@ def main():
     sr_model = cv.dnn_superres.DnnSuperResImpl.create()
     sr_model.readModel(sr_model_path)
     sr_model.setModel("espcn", 2)
+    # 解码模型
+    decode_model = DecodeNet()
+    decode_model.load_state_dict(torch.load("../decode_network/checkpoints/adam_best.pt"))
 
     decoder = BarCodeDecoder()
-    decoder.set_yolo_model(yolo_model).set_sr_model(sr_model).set_re_model(re_model)
+    decoder.set_yolo_model(yolo_model).set_sr_model(sr_model).set_re_model(re_model).set_decode_model(decode_model)
 
-    decode_method = "halcon"
+    decode_method = "network"
     folder = "E:/work/barCode/final_unresolved/"
     detect_none_path = folder + "detect_none/"
     cropped_path = folder + "cropped/"
@@ -81,7 +85,7 @@ def main():
 
 if __name__ == '__main__':
     t1 = time.time()
-    # main()
-    detectAll(True)
+    main()
+    # detectAll(True)
     t2 = time.time()
     print("total time: %s ms" % ((t2 - t1) * 1000))

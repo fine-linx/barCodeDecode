@@ -128,7 +128,7 @@ def predict():
     model.load_state_dict(torch.load("checkpoints/adam_best.pt"))
     model.eval()
 
-    folder = "E:/work/barCode/final_unresolved/rotated/"
+    folder = "E:/work/barCode/20231026/folder_1/rotated/"
     files = os.listdir(folder)
 
     all_count = 0
