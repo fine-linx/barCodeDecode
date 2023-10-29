@@ -11,9 +11,9 @@ from detectAndDecode import DetectAndDecode
 from resnet.CustomResNet import CustomResNet
 
 
-def detectAll(isHalcon=False):
+def detectAll(isHalcon=True):
     decoder = DetectAndDecode()
-    folder_path = "../db/final_unresolved/rotated/"
+    folder_path = "D:/work/barCodeDecode/db/20231019/folder_3/rotated/"
     file_names = os.listdir(folder_path)
     for file_name in file_names:
         if file_name.endswith(".JPG") or file_name.endswith(".jpg") or file_name.endswith(".png"):
@@ -81,7 +81,7 @@ def main():
 
 if __name__ == '__main__':
     t1 = time.time()
-    main()
-    # detectAll(True)
+    # main()
+    detectAll(True)
     t2 = time.time()
     print("total time: %s ms" % ((t2 - t1) * 1000))

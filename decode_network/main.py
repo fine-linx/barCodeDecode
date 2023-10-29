@@ -8,7 +8,24 @@ from torchvision import transforms
 
 from BarCode import BarCode
 from DecodeNet import DecodeNet
-from src.util.util import is_valid_ean13
+
+
+# from src.util.util import is_valid_ean13
+
+
+def is_valid_ean13(barcode):
+    # 确保输入是一个13位的数字字符串
+    if not barcode.isdigit() or len(barcode) != 13:
+        return False
+
+    # 计算校验位
+    odd_sum = sum(int(barcode[i]) for i in range(0, 12, 2))
+    even_sum = sum(int(barcode[i]) for i in range(1, 12, 2))
+    total = odd_sum + even_sum * 3
+    checksum = (10 - (total % 10)) % 10
+
+    # 检查校验位是否与计算的校验位相符
+    return int(barcode[12]) == checksum
 
 
 def main():
@@ -19,7 +36,7 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     batch_size = 32
-    root = "E:/work/barCode/net_dataset/"
+    root = "E:/work/barCode/net_dataset2/"
     out_dir = "checkpoints/"
     train_data = BarCode(root_dir=root + "train", _transforms=preprocess)
     valid_data = BarCode(root_dir=root + "valid", _transforms=preprocess)
@@ -28,7 +45,7 @@ def main():
     valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=True)
 
     model = DecodeNet()
-    model.load_state_dict(torch.load("checkpoints/adam_best_v4.pt"))
+    model.load_state_dict(torch.load("checkpoints/adam_best_v3.pt"))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
 
@@ -36,18 +53,17 @@ def main():
     criterion = nn.CrossEntropyLoss()
     learning_rate = 1e-5
     momentum = 0.9
-    # optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     epochs = 200
 
-    early_stop = 30
+    early_stop = 20
     best_count = 0
     best_epoch = 0
     max_acc = 0.0
     for epoch in range(epochs):
         if best_count >= early_stop:
             print("early stop")
-            # print(f"best epoch: {best_epoch + 1}, accuracy: {max_acc}")
             break
         print(f"\nEpoch:{epoch + 1}")
         model.train()
@@ -109,7 +125,7 @@ def predict():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     model = DecodeNet()
-    model.load_state_dict(torch.load("checkpoints/adam_best_v2.pt"))
+    model.load_state_dict(torch.load("checkpoints/adam_best.pt"))
     model.eval()
 
     folder = "E:/work/barCode/final_unresolved/rotated/"
