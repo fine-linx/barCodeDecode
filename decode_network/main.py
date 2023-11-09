@@ -3,14 +3,12 @@ import os
 import torch
 from PIL import Image
 from torch import nn
+from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from BarCode import BarCode
 from DecodeNet import DecodeNet
-
-
-# from src.util.util import is_valid_ean13
 
 
 def is_valid_ean13(barcode):
@@ -36,8 +34,8 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     batch_size = 32
-    root = "E:/work/barCode/net_dataset2/"
-    out_dir = "checkpoints/"
+    root = "E:/work/barCode/net_dataset3/cropped/"
+    out_dir = "resnet50/cropped/"
     train_data = BarCode(root_dir=root + "train", _transforms=preprocess)
     valid_data = BarCode(root_dir=root + "valid", _transforms=preprocess)
 
@@ -45,19 +43,20 @@ def main():
     valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=True)
 
     model = DecodeNet()
-    model.load_state_dict(torch.load("checkpoints/adam_best_v3.pt"))
+    # model.load_state_dict(torch.load("checkpoints/adam_best_v5.0.pt"))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
 
     # 超参
     criterion = nn.CrossEntropyLoss()
-    learning_rate = 1e-5
+    learning_rate = 1e-3
     momentum = 0.9
-    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    epochs = 200
+    # optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    scheduler = StepLR(optimizer, step_size=20, gamma=0.5)
+    epochs = 300
 
-    early_stop = 20
+    early_stop = 50
     best_count = 0
     best_epoch = 0
     max_acc = 0.0
@@ -65,7 +64,7 @@ def main():
         if best_count >= early_stop:
             print("early stop")
             break
-        print(f"\nEpoch:{epoch + 1}")
+        print(f"\nEpoch:{epoch + 1}, learning rate: {optimizer.param_groups[0]['lr']}")
         model.train()
         sum_loss = 0.0
         # 训练
@@ -115,6 +114,7 @@ def main():
             print(f"save epoch {epoch + 1} model")
             best_epoch = epoch
             max_acc = accuracy
+        scheduler.step()
     print(f"best epoch: {best_epoch + 1}, accuracy: {max_acc}")
 
 
@@ -125,14 +125,15 @@ def predict():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     model = DecodeNet()
-    model.load_state_dict(torch.load("checkpoints/adam_best.pt"))
+    model.load_state_dict(torch.load("resnet50/adam_best.pt"))
     model.eval()
 
-    folder = "E:/work/barCode/20231026/folder_1/rotated/"
+    folder = "E:/work/barCode/net_dataset3/test/"
     files = os.listdir(folder)
 
     all_count = 0
     maybe_right_count = 0
+    right_count = 0
     for file in files:
         if file.endswith(".png"):
             print(file, end="\t")
@@ -150,12 +151,20 @@ def predict():
             if is_valid_ean13(result):
                 maybe_right_count += 1
                 print("maybe right", end="\t")
+                label = file.split("_")[0]
+                if label == result:
+                    right_count += 1
             print(result)
     print(f"all: {all_count}")
     print(f"maybe right: {maybe_right_count}")
-    print("acc: ", maybe_right_count / all_count if all_count > 0 else 0)
+    print(f"right: {right_count}")
+    print("acc: ", right_count / all_count if all_count > 0 else 0)
+
+
+def modified_predict(logits: torch.Tensor, max_iter: int = 2, ):
+    pass
 
 
 if __name__ == '__main__':
-    # main()
-    predict()
+    main()
+    # predict()

@@ -5,8 +5,8 @@ from collections import Counter
 
 
 def main():
-    folder = "E:/work/barCode/1030_json/"
-    image_folder = "E:/work/barCode/20231030/"
+    folder = "E:/work/barCode/20231102_json2/"
+    image_folder = "E:/work/barCode/20231102_img/"
     result_folder = os.path.join(image_folder, "results")
 
     if not os.path.exists(result_folder):
@@ -27,7 +27,10 @@ def main():
                     result_dict[decode_result] += 1
 
                     new_img_name = f"{decode_result}_{result_count}.JPG"
-                    shutil.move(os.path.join(image_folder, img_name), os.path.join(result_folder, new_img_name))
+                    try:
+                        shutil.move(os.path.join(image_folder, img_name), os.path.join(result_folder, new_img_name))
+                    except FileNotFoundError:
+                        print("not found  ", img_name)
 
 
 if __name__ == "__main__":

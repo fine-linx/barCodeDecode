@@ -4,10 +4,10 @@ import random
 import shutil
 
 # 设置随机数种子
-random.seed(111)
+random.seed(21)
 
 # 定义文件夹路径
-root_dir = "E:/work/barCode/net_dataset2"
+root_dir = "E:/work/barCode/net_dataset3/cropped/"
 image_dir = root_dir
 # image_dir = os.path.join(root_dir, 'images')
 # label_dir = os.path.join(root_dir, 'labels')
