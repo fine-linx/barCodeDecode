@@ -1,4 +1,5 @@
 import os
+from itertools import product
 
 import torch
 from PIL import Image
@@ -34,8 +35,8 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     batch_size = 32
-    root = "E:/work/barCode/net_dataset3/cropped/"
-    out_dir = "resnet50/cropped/"
+    root = "E:/work/barCode/net_dataset3/"
+    out_dir = "resnet34/"
     train_data = BarCode(root_dir=root + "train", _transforms=preprocess)
     valid_data = BarCode(root_dir=root + "valid", _transforms=preprocess)
 
@@ -125,10 +126,10 @@ def predict():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     model = DecodeNet()
-    model.load_state_dict(torch.load("resnet50/adam_best.pt"))
+    model.load_state_dict(torch.load("resnet18/cropped/adam_best.pt"))
     model.eval()
 
-    folder = "E:/work/barCode/net_dataset3/test/"
+    folder = "E:/work/barCode/net_dataset3/cropped/test/"
     files = os.listdir(folder)
 
     all_count = 0
@@ -145,9 +146,10 @@ def predict():
                 output = model(input_img)
             output = output.view(-1, 13, 10)
             output = nn.functional.softmax(output, dim=-1)
-            _, predicted = torch.max(output, 2)
-            arr = predicted.squeeze().numpy()
-            result = "".join(map(str, arr))
+            result = modified_predict(output)
+            # _, predicted = torch.max(output, 2)
+            # arr = predicted.squeeze().numpy()
+            # result = "".join(map(str, arr))
             if is_valid_ean13(result):
                 maybe_right_count += 1
                 print("maybe right", end="\t")
@@ -161,8 +163,19 @@ def predict():
     print("acc: ", right_count / all_count if all_count > 0 else 0)
 
 
-def modified_predict(logits: torch.Tensor, max_iter: int = 2, ):
-    pass
+def modified_predict(logit: torch.Tensor) -> str:
+    logit = logit.squeeze()
+    top2_list = []
+    for group in logit:
+        top_indices = torch.topk(group, k=2).indices.numpy()
+        top2_list.append(top_indices)
+    # 对每一组进行组合，得到所有可能得结果
+    candidates = list(product(*top2_list))
+    for candidate in candidates:
+        result = "".join(map(str, candidate))
+        if is_valid_ean13(result):
+            return result
+    return ""
 
 
 if __name__ == '__main__':
