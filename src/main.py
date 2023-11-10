@@ -29,7 +29,7 @@ def main():
     yolo_model = YOLO("../yolo/weights/best_v4.pt")
     # 区域估计模型
     re_model = CustomResNet()
-    re_model.load_state_dict(torch.load("../resnet/checkpoints/adam_best_v1.pt"))
+    re_model.load_state_dict(torch.load("../resnet/checkpoints/adam_best_v1.pt", map_location="cpu"))
     # 超分模型
     sr_model_path = "../sr_models/ESPCN/ESPCN_x2.pb"
     sr_model = cv.dnn_superres.DnnSuperResImpl.create()
@@ -40,10 +40,11 @@ def main():
     decode_model.load_state_dict(torch.load("../decode_network/checkpoints/adam_best.pt"))
 
     decoder = BarCodeDecoder()
-    decoder.set_yolo_model(yolo_model).set_sr_model(sr_model).set_re_model(re_model).set_decode_model(decode_model)
+    decoder.set_yolo_model(yolo_model).set_sr_model(sr_model).set_re_model(re_model)
 
-    decode_method = "zbar"
-    folder = "E:/work/barCode/20231030/results/"
+    folder = "../db/20231024/"
+    decode_method = "network"
+    folder = "E:/work/barCode/final_unresolved/"
     detect_none_path = folder + "detect_none/"
     cropped_path = folder + "cropped/"
     rotated_path = folder + "rotated/"
@@ -66,19 +67,18 @@ def main():
             if len(boxes) == 0:
                 # 没有检测到
                 shutil.copy(file_path, detect_none_path + file)
-                # result = decoder.decode([cv.imread(file_path)], decoder=decode_method, rotate=True)
-                pass
+                result = decoder.decode([cv.imread(file_path)], decoder=decode_method, rotate=True)
             else:
                 cropped = decoder.crop(boxes, save=True, save_dir=cropped_path)
                 result = decoder.decode(cropped, decoder=decode_method, save_rotated=True, save_dir=rotated_path)
             # result = decoder.detectAndDecode(file_path)
-            # if len(result) > 0:
-            #     right_count += 1
-            # else:
-            #     shutil.copy(file_path, unresolved_path + file)
-            # print(all_count, end="\t")
-            # print(file_path, end="\t")
-            # print(result)
+            if len(result) > 0:
+                right_count += 1
+            else:
+                shutil.copy(file_path, unresolved_path + file)
+            print(all_count, end="\t")
+            print(file_path, end="\t")
+            print(result)
     print("all: ", all_count)
     print("right: ", right_count)
     print("acc: ", right_count / all_count if all_count > 0 else 0)
