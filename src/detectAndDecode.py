@@ -3,6 +3,7 @@ import shutil
 
 import cv2 as cv
 import halcon as ha
+from pyzbar import pyzbar
 
 
 class DetectAndDecode:
@@ -24,32 +25,32 @@ class DetectAndDecode:
             # width, height = ha.get_image_size(grayImage)
             # grayImage = ha.emphasize(grayImage, width[0], height[0], 1)
             barCodeHandle = ha.create_bar_code_model([], [])
-            symbolRegions, content = ha.find_bar_code(grayImage, barCodeHandle,
-                                                      "auto")  # ['EAN-13', 'Code 128', 'auto'])
-            # if label in content:
-            if content:
-                self.right_count += 1
-                print(path, end="\t")
-                print(content)
-            else:
-                print(path)
-                # file_name = path.split("/")[-1]
-                # unresolved_path = path.replace(file_name, "unresolved/")
-                # os.makedirs(unresolved_path, exist_ok=True)
-                # shutil.copy(path, unresolved_path + file_name)
-                # shutil.copy(path, self.unresolved_path["halcon"] + file_name)
-        else:
-            src = cv.imread(path)
-            content, _, _ = self.bar_det.detectAndDecode(src)
-            if content:
+            symbolRegions, content = ha.find_bar_code(grayImage, barCodeHandle, ['EAN-13', 'Code 128', 'auto'])
+            if label in content:
+                # if content:
                 self.right_count += 1
                 print(path, end="\t")
                 print(content)
             else:
                 print(path)
                 file_name = path.split("/")[-1]
-                # shutil.copy(path, self.unresolved_path["opencv"] + file_name)
                 unresolved_path = path.replace(file_name, "unresolved/")
+                os.makedirs(unresolved_path, exist_ok=True)
+                shutil.copy(path, unresolved_path + file_name)
+                # shutil.copy(path, self.unresolved_path["halcon"] + file_name)
+        else:
+            src = cv.imread(path)
+            src = cv.cvtColor(src, cv.COLOR_BGR2GRAY)
+            res = pyzbar.decode(src)
+            if res and label == res[0].data.decode("utf-8"):
+                self.right_count += 1
+                print(path, end="\t")
+                print(res[0].data.decode("utf-8"))
+            else:
+                print(path)
+                file_name = path.split("/")[-1]
+                # shutil.copy(path, self.unresolved_path["opencv"] + file_name)
+                unresolved_path = path.replace(file_name, "unresolved/zbar/")
                 os.makedirs(unresolved_path, exist_ok=True)
                 shutil.copy(path, unresolved_path + file_name)
 

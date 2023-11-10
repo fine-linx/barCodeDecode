@@ -1,16 +1,18 @@
 import os
 
+import cv2 as cv
 import pyzxing
 
 if __name__ == '__main__':
     reader = pyzxing.BarCodeReader()
-    folder = "../../db/final_unresolved/rotated/cropped/"
+    folder = "E:/work/barCode/net_dataset3/cropped/test/"
     files = os.listdir(folder)
     all_barcode = 0
     right = 0
     for file in files:
         all_barcode += 1
-        barcode = reader.decode(folder + file)
+        img = cv.imread(folder + file)
+        barcode = reader.decode_array(img)
         data = barcode[0].get("parsed")
         if data:
             right += 1
