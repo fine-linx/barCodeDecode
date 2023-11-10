@@ -13,7 +13,7 @@ from resnet.CustomResNet import CustomResNet
 
 def detectAll(isHalcon=False):
     decoder = DetectAndDecode()
-    folder_path = "E:/work/barCode/net_dataset3/"
+    folder_path = "E:/work/barCode/net_dataset3/test/"
     file_names = os.listdir(folder_path)
     for file_name in file_names:
         if file_name.endswith(".JPG") or file_name.endswith(".jpg") or file_name.endswith(".png"):
@@ -82,6 +82,6 @@ def main():
 if __name__ == '__main__':
     t1 = time.time()
     # main()
-    detectAll(False)
+    detectAll(True)
     t2 = time.time()
     print("total time: %s ms" % ((t2 - t1) * 1000))

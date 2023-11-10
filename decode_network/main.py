@@ -126,10 +126,10 @@ def predict():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     model = DecodeNet()
-    model.load_state_dict(torch.load("resnet18/cropped/adam_best.pt"))
+    model.load_state_dict(torch.load("resnet18/adam_best.pt"))
     model.eval()
 
-    folder = "E:/work/barCode/net_dataset3/cropped/test/"
+    folder = "E:/work/barCode/net_dataset3/test/unresolved/halcon/"
     files = os.listdir(folder)
 
     all_count = 0
@@ -179,5 +179,5 @@ def modified_predict(logit: torch.Tensor) -> str:
 
 
 if __name__ == '__main__':
-    main()
-    # predict()
+    # main()
+    predict()

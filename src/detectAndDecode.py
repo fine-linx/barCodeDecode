@@ -34,7 +34,7 @@ class DetectAndDecode:
             else:
                 print(path)
                 file_name = path.split("/")[-1]
-                unresolved_path = path.replace(file_name, "unresolved/")
+                unresolved_path = path.replace(file_name, "unresolved/halcon/")
                 os.makedirs(unresolved_path, exist_ok=True)
                 shutil.copy(path, unresolved_path + file_name)
                 # shutil.copy(path, self.unresolved_path["halcon"] + file_name)
