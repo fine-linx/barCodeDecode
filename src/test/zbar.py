@@ -24,7 +24,12 @@ def decode(_src, binary_max=230, binary_step=2):
 
 
 if __name__ == '__main__':
-    folder = "../../db/final_unresolved/rotated/cropped/"
+    folder = "E:/work/barCode/net_dataset3/cropped/test/"
     files = os.listdir(folder)
+    right = 0
     for file in files:
         barcode = decode(cv.imread(folder + file))
+        right += barcode
+    print(f"all: {len(files)}")
+    print(f"right: {right}")
+    print("acc: {}")
