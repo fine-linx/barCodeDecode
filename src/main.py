@@ -7,14 +7,13 @@ import torch
 from ultralytics import YOLO
 
 from BarCodeDecoder import BarCodeDecoder
-from decode_network.DecodeNet import DecodeNet
 from detectAndDecode import DetectAndDecode
 from resnet.CustomResNet import CustomResNet
 
 
-def detectAll(isHalcon=True):
+def detectAll(isHalcon=False):
     decoder = DetectAndDecode()
-    folder_path = "D:/work/barCodeDecode/db/20231019/folder_3/rotated/"
+    folder_path = "E:/work/barCode/net_dataset3/test/"
     file_names = os.listdir(folder_path)
     for file_name in file_names:
         if file_name.endswith(".JPG") or file_name.endswith(".jpg") or file_name.endswith(".png"):
@@ -29,22 +28,18 @@ def main():
     yolo_model = YOLO("../yolo/weights/best_v4.pt")
     # 区域估计模型
     re_model = CustomResNet()
-    re_model.load_state_dict(torch.load("../resnet/checkpoints/adam_best_v1.pt", map_location="cpu"))
+    re_model.load_state_dict(torch.load("../resnet/checkpoints/adam_best_v1.pt"))
     # 超分模型
     sr_model_path = "../sr_models/ESPCN/ESPCN_x2.pb"
     sr_model = cv.dnn_superres.DnnSuperResImpl.create()
     sr_model.readModel(sr_model_path)
     sr_model.setModel("espcn", 2)
-    # 解码模型
-    decode_model = DecodeNet()
-    decode_model.load_state_dict(torch.load("../decode_network/checkpoints/adam_best.pt"))
 
     decoder = BarCodeDecoder()
     decoder.set_yolo_model(yolo_model).set_sr_model(sr_model).set_re_model(re_model)
 
-    folder = "../db/20231024/"
-    decode_method = "network"
-    folder = "E:/work/barCode/final_unresolved/"
+    decode_method = "halcon"
+    folder = "E:/work/barCode/20231026/folder_2/"
     detect_none_path = folder + "detect_none/"
     cropped_path = folder + "cropped/"
     rotated_path = folder + "rotated/"
@@ -63,15 +58,15 @@ def main():
         if file.endswith(".jpg") or file.endswith(".JPG") or file.endswith(".png") or file.endswith("BMP"):
             all_count += 1
             file_path = folder + file
-            boxes = decoder.detect(file_path, save_rect=True, save_dir=rect_path)
-            if len(boxes) == 0:
-                # 没有检测到
-                shutil.copy(file_path, detect_none_path + file)
-                result = decoder.decode([cv.imread(file_path)], decoder=decode_method, rotate=True)
-            else:
-                cropped = decoder.crop(boxes, save=True, save_dir=cropped_path)
-                result = decoder.decode(cropped, decoder=decode_method, save_rotated=True, save_dir=rotated_path)
-            # result = decoder.detectAndDecode(file_path)
+            # boxes = decoder.detect(file_path, save_rect=True, save_dir=rect_path)
+            # if len(boxes) == 0:
+            #     # 没有检测到
+            #     shutil.copy(file_path, detect_none_path + file)
+            #     result = decoder.decode([cv.imread(file_path)], decoder=decode_method, rotate=True)
+            # else:
+            #     cropped = decoder.crop(boxes, save=True, save_dir=cropped_path)
+            #     result = decoder.decode(cropped, decoder=decode_method, save_rotated=True, save_dir=rotated_path)
+            result = decoder.detectAndDecode(file_path)
             if len(result) > 0:
                 right_count += 1
             else:
@@ -86,7 +81,7 @@ def main():
 
 if __name__ == '__main__':
     t1 = time.time()
-    main()
-    # detectAll(True)
+    # main()
+    detectAll(True)
     t2 = time.time()
     print("total time: %s ms" % ((t2 - t1) * 1000))

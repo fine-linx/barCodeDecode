@@ -12,14 +12,14 @@ class DecodeNet(nn.Module):
         self._create_resnet(num_classes, num_digits)
 
     def _create_resnet(self, num_classes, num_digits):
-        # resnet = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+        resnet = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
         # resnet18 = models.resnet18()
         # resnet = models.resnet34(weights=models.ResNet34_Weights.DEFAULT)
-        resnet = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+        # resnet = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
         self.resnet = nn.Sequential(*list(resnet.children())[:-1])
         self.fc = nn.Sequential(
-            nn.BatchNorm1d(2048 * 1),
-            nn.Linear(2048 * 1, num_classes * num_digits))
+            nn.BatchNorm1d(512 * 1),
+            nn.Linear(512 * 1, num_classes * num_digits))
 
     def forward(self, x):
         x = self.resnet(x)

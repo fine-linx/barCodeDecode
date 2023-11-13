@@ -1,3 +1,5 @@
+import os
+
 import cv2 as cv
 import pyzbar.pyzbar as pyzbar
 
@@ -22,9 +24,12 @@ def decode(_src, binary_max=230, binary_step=2):
 
 
 if __name__ == '__main__':
-    file = "C:/Users/PC/Desktop/cropped/8033873185026_2_rotated_0.png"
-    barcode = decode(cv.imread(file))
-    # folder = "../../db/final_unresolved/rotated/cropped/"
-    # files = os.listdir(folder)
-    # for file in files:
-    #     barcode = decode(cv.imread(folder + file))
+    folder = "E:/work/barCode/net_dataset3/cropped/test/"
+    files = os.listdir(folder)
+    right = 0
+    for file in files:
+        barcode = decode(cv.imread(folder + file))
+        right += barcode
+    print(f"all: {len(files)}")
+    print(f"right: {right}")
+    print("acc: {}")
