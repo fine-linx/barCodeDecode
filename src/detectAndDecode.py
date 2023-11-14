@@ -29,6 +29,10 @@ class DetectAndDecode:
             if label in content:
                 # if content:
                 self.right_count += 1
+                file_name = path.split("/")[-1]
+                resolved_path = path.replace(file_name, "resolved/")
+                os.makedirs(resolved_path, exist_ok=True)
+                shutil.copy(path, resolved_path + file_name)
                 print(path, end="\t")
                 print(content)
             else:

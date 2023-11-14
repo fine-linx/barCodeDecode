@@ -82,6 +82,6 @@ def main():
 if __name__ == '__main__':
     t1 = time.time()
     # main()
-    detectAll(False)
+    detectAll(True)
     t2 = time.time()
     print("total time: %s ms" % ((t2 - t1) * 1000))
