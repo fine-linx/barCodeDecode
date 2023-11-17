@@ -42,7 +42,7 @@ class RegionEstimator:
         x2 = int(width * value1 + 0.5 * width * value3 + self.offset)
         y1 = int(height * value2 - 0.5 * height * value4 - self.offset)
         y2 = int(height * value2 + 0.5 * height * value4 + self.offset)
-        cropped_img = image[y1:y2, x1:x2]
+        cropped_img = image[y1 - 8:y2 + 8, x1 - 8:x2 + 8]
         file_name = source.split("/")[-1]
         if save_rect:
             img_rect = cv.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
@@ -73,14 +73,15 @@ if __name__ == '__main__':
     re.set_re_model(re_model)
     re.barCodeDecoder._halcon_handle = halcon.create_bar_code_model([], [])
     decode_results = dict()
-    folder = "E:/work/barCode/net_dataset3/"
+    folder = "C:/Users/PC/Desktop/"
     result_folder = folder + "results/"
     os.makedirs(result_folder, exist_ok=True)
     files = os.listdir(folder)
     all_count = 0
     right_count = 0
     for file in files:
-        if file.endswith(".png") or file.endswith(".JPG"):
+        # if file.endswith(".png") or file.endswith(".JPG"):
+        if file.endswith("rotated_0.png"):
             all_count += 1
             res, image = re.estimate(folder + file, save_rect=False, save_cropped=True, decoder="halcon")
             # if len(res) > 0:
