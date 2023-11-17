@@ -7,8 +7,15 @@ import torch
 from ultralytics import YOLO
 
 from BarCodeDecoder import BarCodeDecoder
+from decode_network.DecodeNet import DecodeNet
 from detectAndDecode import DetectAndDecode
 from resnet.CustomResNet import CustomResNet
+
+
+# 关闭yolo日志
+# import os
+#
+# os.environ["YOLO_VERBOSE"] = str(False)
 
 
 def detectAll(isHalcon=False):
@@ -25,21 +32,25 @@ def detectAll(isHalcon=False):
 
 def main():
     # yolo模型
-    yolo_model = YOLO("../yolo/weights/best_v4.pt")
+    yolo_model = YOLO("../yolo/weights/best_v5.pt")
     # 区域估计模型
-    re_model = CustomResNet()
-    re_model.load_state_dict(torch.load("../resnet/checkpoints/adam_best_v1.pt"))
+    # re_model = CustomResNet()
+    # re_model.load_state_dict(torch.load("../resnet/checkpoints/adam_best_v1.pt"))
     # 超分模型
-    sr_model_path = "../sr_models/ESPCN/ESPCN_x2.pb"
-    sr_model = cv.dnn_superres.DnnSuperResImpl.create()
-    sr_model.readModel(sr_model_path)
-    sr_model.setModel("espcn", 2)
+    # sr_model_path = "../sr_models/ESPCN/ESPCN_x2.pb"
+    # sr_model = cv.dnn_superres.DnnSuperResImpl.create()
+    # sr_model.readModel(sr_model_path)
+    # sr_model.setModel("espcn", 2)
+    # 条形码识别网络
+    decode_network = DecodeNet()
+    decode_network.load_state_dict(torch.load("../decode_network/tune/resnet50_v0.4p_adam_best.pt"))
+    decode_network.eval()
+    decoder = BarCodeDecoder().set_decode_model(decode_network)
 
-    decoder = BarCodeDecoder()
-    decoder.set_yolo_model(yolo_model).set_sr_model(sr_model).set_re_model(re_model)
+    # decoder.set_yolo_model(yolo_model).set_sr_model(sr_model).set_re_model(re_model)
 
-    decode_method = "halcon"
-    folder = "E:/work/barCode/20231026/folder_2/"
+    decode_method = "network"
+    folder = "E:/work/barCode/20231116_img/"
     detect_none_path = folder + "detect_none/"
     cropped_path = folder + "cropped/"
     rotated_path = folder + "rotated/"
@@ -54,34 +65,50 @@ def main():
     files = os.listdir(folder)
     all_count = 0
     right_count = 0
-    for file in files:
+    zbar_count, network_count = 0, 0
+    t1 = time.time()
+    for idx, file in enumerate(files):
+        # if idx >= 100:
+        #     break
         if file.endswith(".jpg") or file.endswith(".JPG") or file.endswith(".png") or file.endswith("BMP"):
             all_count += 1
             file_path = folder + file
+            label = file.split("_")[0]
             # boxes = decoder.detect(file_path, save_rect=True, save_dir=rect_path)
             # if len(boxes) == 0:
             #     # 没有检测到
             #     shutil.copy(file_path, detect_none_path + file)
-            #     result = decoder.decode([cv.imread(file_path)], decoder=decode_method, rotate=True)
+            #     # result = decoder.decode([cv.imread(file_path)], decoder=decode_method, rotate=True)
             # else:
             #     cropped = decoder.crop(boxes, save=True, save_dir=cropped_path)
             #     result = decoder.decode(cropped, decoder=decode_method, save_rotated=True, save_dir=rotated_path)
-            result = decoder.detectAndDecode(file_path)
-            if len(result) > 0:
+            # result = decoder.detectAndDecode(file_path, decoder=decode_method)
+            result, result_type = decoder.detectAndDecodeByNetwork(file_path)
+            if label in result:
                 right_count += 1
+                if result_type == "zbar":
+                    zbar_count += 1
+                else:
+                    network_count += 1
             else:
                 shutil.copy(file_path, unresolved_path + file)
+            # if len(result) > 0:
+            #     right_count += 1
+            # else:
+            #     shutil.copy(file_path, unresolved_path + file)
             print(all_count, end="\t")
             print(file_path, end="\t")
             print(result)
     print("all: ", all_count)
-    print("right: ", right_count)
+    print(f"right: {right_count}, zbar: {zbar_count}, network: {network_count}")
     print("acc: ", right_count / all_count if all_count > 0 else 0)
+    t2 = time.time()
+    print("total time: %.4f ms, per image: %.4f ms" % ((t2 - t1) * 1000, (t2 - t1) * 1000 / all_count))
 
 
 if __name__ == '__main__':
-    t1 = time.time()
-    # main()
-    detectAll(True)
-    t2 = time.time()
-    print("total time: %s ms" % ((t2 - t1) * 1000))
+    # t1 = time.time()
+    main()
+    # detectAll(True)
+    # t2 = time.time()
+    # print("total time: %s ms" % ((t2 - t1) * 1000))

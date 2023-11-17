@@ -10,7 +10,9 @@ class BarCode(Dataset):
     def __init__(self, root_dir, _transforms=None):
         self.root_dir = root_dir
         self.transforms = _transforms
-        self.image_list = os.listdir(self.root_dir)
+        self.image_list = os.listdir(root_dir)
+        # self.image_list = [file for file in os.listdir(self.root_dir)
+        #                    if os.path.isfile(os.path.join(self.root_dir, file))]
         # self.label_list = os.listdir(os.path.join(root_dir, "labels"))
 
     def __len__(self):

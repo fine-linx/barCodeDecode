@@ -1,4 +1,5 @@
 import math
+import os.path
 from typing import Any
 
 import cv2 as cv
@@ -12,9 +13,14 @@ from torch import nn
 from torchvision import transforms
 from ultralytics import YOLO
 
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from decode_network.DecodeNet import DecodeNet
 from src.util.constants import IMAGE_MIN_SIDE
 from src.util.util import resize, is_valid_ean13
+from unified_network.DetNet import DetNet
 
 
 class BarCodeDecoder:
@@ -79,6 +85,20 @@ class BarCodeDecoder:
                 print("no detection\t", source)
         return result
 
+    def detectAndDecodeByNetwork(self, source: str) -> tuple[list[str | None], str | None]:
+        self._image_path = source
+        boxes = self.detect(source)
+        result_type = "zbar"
+        if len(boxes) == 0:
+            print("no detection\t", source)
+            return [], None
+        cropped = self.crop(boxes, confidence=0.3)
+        result = self.decode(cropped, decoder="zbar")
+        if not result:
+            result = self.decode(cropped, "network")
+            result_type = "network"
+        return result, result_type
+
     def detect(self, source: str, save_rect: bool = False, save_dir: str = None) -> list[dict[str, int | float]]:
         """
         使用yolo对图片中的条形码进行检测
@@ -89,12 +109,14 @@ class BarCodeDecoder:
         """
         image, coeff_expansion = self._preprocess(source)
         if self.yolo_model is None:
-            self.yolo_model = YOLO("../yolo/weights/best_v3.pt")
+            self.yolo_model = YOLO("../yolo/weights/best_v5.pt")
         detect_results = self.yolo_model.predict(source=image)
         result = []
         for r in detect_results:
             r = r.cpu().numpy()
             boxes = r.boxes.data.tolist()
+            if len(boxes) > 1:
+                print("multi objects: ", self._image_path)
             for box in boxes:
                 result.append(
                     {
@@ -276,7 +298,9 @@ class BarCodeDecoder:
     def __decode_by_network(self, image: ndarray):
         if self.decode_model is None:
             self.decode_model = DecodeNet()
-            self.decode_model.load_state_dict(torch.load("../decode_network/checkpoints/adam_best.pt"))
+            self.decode_model.load_state_dict(torch.load("../decode_network/tune/resnet50_v0.4p_adam_best.pt"))
+            # self.decode_model = DetNet()
+            # self.decode_model.load_state_dict(torch.load("../unified_network/tune/resnet50_v0.2_adam_best.pt"))
         if self.resnet_preprocess is None:
             self.resnet_preprocess = transforms.Compose([
                 transforms.Resize((224, 224)),
@@ -284,15 +308,20 @@ class BarCodeDecoder:
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             ])
         input_image = Image.fromarray(cv.cvtColor(image, cv.COLOR_BGR2RGB))
+        # input_image = Image.fromarray(image)
+        # cv.imwrite("temp.png", image, [cv.IMWRITE_PNG_COMPRESSION, 0])
+        # input_image = Image.open("temp.png")
         input_image = self.resnet_preprocess(input_image)
         input_image = input_image.unsqueeze(0)
         with torch.no_grad():
             self.decode_model.eval()
             output = self.decode_model(input_image)
+        # _, output = output.split([4, 130], dim=1)
+        # output = output.reshape(-1, 13, 10)
         output = output.view(-1, 13, 10)
-        output = nn.functional.softmax(output, dim=1)
+        output = nn.functional.softmax(output, dim=-1)
         _, predicted = torch.max(output, 2)
-        arr = predicted.squeeze().numpy()
+        arr = predicted.squeeze().cpu().numpy()
         result = "".join(map(str, arr))
         return result
 
@@ -310,7 +339,8 @@ class BarCodeDecoder:
         """
         self._image_path = source
         self._image = cv.imread(source)
-        return resize(self._image, IMAGE_MIN_SIDE)
+        # return resize(self._image, IMAGE_MIN_SIDE)
+        return self._image, 1.0
 
     @staticmethod
     def _rotate(image: cv.Mat) -> tuple[cv.Mat | ndarray[Any, dtype[generic]] | ndarray, Any]:

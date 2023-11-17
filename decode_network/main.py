@@ -1,5 +1,6 @@
 import os
-from itertools import product
+import shutil
+import time
 
 import torch
 from PIL import Image
@@ -33,10 +34,15 @@ def main():
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        # transforms.Normalize(mean=[0.173, 0.173, 0.173], std=[0.254, 0.254, 0.254])  # 训练集的数据
+        # 验证集数据
+        # mean: tensor([0.1742, 0.1742, 0.1742]), std: tensor([0.2561, 0.2561, 0.2561])
     ])
     batch_size = 32
-    root = "E:/work/barCode/net_dataset3/"
-    out_dir = "resnet34/"
+    root = "E:/work/barCode/net_dataset4/"
+    out_dir = "tune/"
+    prefix = "resnet50_v1.1p_"
+    os.makedirs(out_dir, exist_ok=True)
     train_data = BarCode(root_dir=root + "train", _transforms=preprocess)
     valid_data = BarCode(root_dir=root + "valid", _transforms=preprocess)
 
@@ -44,20 +50,18 @@ def main():
     valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=True)
 
     model = DecodeNet()
-    # model.load_state_dict(torch.load("checkpoints/adam_best_v5.0.pt"))
+    model.load_state_dict(torch.load("tune/resnet50_v1.0p_adam_best.pt"))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
 
     # 超参
     criterion = nn.CrossEntropyLoss()
-    learning_rate = 1e-3
-    momentum = 0.9
-    # optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
+    learning_rate = 1e-5
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = StepLR(optimizer, step_size=20, gamma=0.5)
+    scheduler = StepLR(optimizer, step_size=5, gamma=0.1)
     epochs = 300
 
-    early_stop = 50
+    early_stop = 15
     best_count = 0
     best_epoch = 0
     max_acc = 0.0
@@ -77,10 +81,6 @@ def main():
             outputs = outputs.view(-1, 10)
             outputs = nn.functional.softmax(outputs, dim=-1)
             labels = labels.view(-1)
-            # loss_per_digit = criterion(outputs, labels)
-            # loss_per_digit = loss_per_digit.view(-1, 13)
-            # loss = loss_per_digit.mean(dim=1)
-            # loss = loss.mean()
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
@@ -107,11 +107,11 @@ def main():
                 total_samples += labels.size(0)
             accuracy = total_correct / total_samples
             print(f"Epoch [{epoch + 1}/{epochs}]: Validation Accuracy = {accuracy}")
-        torch.save(model.state_dict(), out_dir + "adam_last.pt")
+        torch.save(model.state_dict(), out_dir + prefix + "adam_last.pt")
         best_count += 1
         if accuracy > max_acc:
             best_count = 0
-            torch.save(model.state_dict(), out_dir + "adam_best.pt")
+            torch.save(model.state_dict(), out_dir + prefix + "adam_best.pt")
             print(f"save epoch {epoch + 1} model")
             best_epoch = epoch
             max_acc = accuracy
@@ -119,25 +119,31 @@ def main():
     print(f"best epoch: {best_epoch + 1}, accuracy: {max_acc}")
 
 
-def predict():
+def predict(save: bool = False):
     preprocess = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     model = DecodeNet()
-    model.load_state_dict(torch.load("resnet18/adam_best.pt"))
+    model.load_state_dict(torch.load("tune/resnet50_v0.4p_adam_best.pt"))
+    # model.load_state_dict(torch.load("tune/resnet50_v1.1p_adam_best.pt"))
     model.eval()
 
-    folder = "E:/work/barCode/net_dataset3/test/unresolved/halcon/"
+    folder = "E:/work/barCode/20231116_img/rotated/"
+    unresolved_folder = folder + "unresolved/network/"
+    if save:
+        os.makedirs(unresolved_folder, exist_ok=True)
     files = os.listdir(folder)
 
     all_count = 0
     maybe_right_count = 0
     right_count = 0
+    wrong_list = list()
+    t1 = time.time()
     for file in files:
         if file.endswith(".png"):
-            print(file, end="\t")
+            print(folder + file, end="\t")
             all_count += 1
             img = Image.open(folder + file)
             input_img = preprocess(img)
@@ -146,7 +152,7 @@ def predict():
                 output = model(input_img)
             output = output.view(-1, 13, 10)
             output = nn.functional.softmax(output, dim=-1)
-            result = modified_predict(output)
+            result = modified_predict(output, max_error_bit=0)
             # _, predicted = torch.max(output, 2)
             # arr = predicted.squeeze().numpy()
             # result = "".join(map(str, arr))
@@ -156,28 +162,63 @@ def predict():
                 label = file.split("_")[0]
                 if label == result:
                     right_count += 1
+                else:
+                    wrong_list.append(folder + file)
+                    if save:
+                        shutil.copy(folder + file, unresolved_folder + file)
+            else:
+                wrong_list.append(folder + file)
+                if save:
+                    shutil.copy(folder + file, unresolved_folder + file)
             print(result)
+    print("wrong:")
+    for file in wrong_list:
+        print(file)
     print(f"all: {all_count}")
     print(f"maybe right: {maybe_right_count}")
     print(f"right: {right_count}")
     print("acc: ", right_count / all_count if all_count > 0 else 0)
+    t2 = time.time()
+    print("total time: %s ms, per image: %s ms" % ((t2 - t1) * 1000, (t2 - t1) * 1000 / all_count))
 
 
-def modified_predict(logit: torch.Tensor) -> str:
+def modified_predict(logit: torch.Tensor, max_error_bit: int = 0) -> str:
     logit = logit.squeeze()
     top2_list = []
-    for group in logit:
+    diff_dict = dict()
+    for idx, group in enumerate(logit):
         top_indices = torch.topk(group, k=2).indices.numpy()
+        diff = group[top_indices[0]] - group[top_indices[1]]
+        diff_dict[idx] = diff.item()
         top2_list.append(top_indices)
-    # 对每一组进行组合，得到所有可能得结果
-    candidates = list(product(*top2_list))
-    for candidate in candidates:
-        result = "".join(map(str, candidate))
-        if is_valid_ean13(result):
-            return result
+    candidate = [digit[0] for digit in top2_list]
+    candidate_data = "".join(map(str, candidate))
+    if is_valid_ean13(candidate_data):
+        return candidate_data
+    # 将diff_dict按照值的大小进行升序排序
+    sorted_diff_dict = sorted(diff_dict.items(), key=lambda x: x[1])
+    if max_error_bit >= 1:
+        # 容错 至少1位
+        for idx, _ in sorted_diff_dict:
+            data = candidate.copy()
+            data[idx] = top2_list[idx][1]
+            candidate_data = "".join(map(str, data))
+            if is_valid_ean13(candidate_data):
+                return candidate_data
+    if max_error_bit >= 2:
+        # 容错 至少2位
+        for idx, _ in sorted_diff_dict:
+            data = candidate.copy()
+            data[idx] = top2_list[idx][1]
+            for idx2, _ in sorted_diff_dict:
+                if idx2 != idx:
+                    data[idx2] = top2_list[idx2][1]
+                    candidate_data = "".join(map(str, data))
+                    if is_valid_ean13(candidate_data):
+                        return candidate_data
     return ""
 
 
 if __name__ == '__main__':
     # main()
-    predict()
+    predict(save=False)
