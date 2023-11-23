@@ -92,7 +92,7 @@ class BarCodeDecoder:
         if len(boxes) == 0:
             print("no detection\t", source)
             return [], None
-        cropped = self.crop(boxes, confidence=0.3)
+        cropped = self.crop(boxes, confidence=0.25)
         result = self.decode(cropped, decoder="zbar")
         if not result:
             result = self.decode(cropped, "network")
@@ -109,7 +109,7 @@ class BarCodeDecoder:
         """
         image, coeff_expansion = self._preprocess(source)
         if self.yolo_model is None:
-            self.yolo_model = YOLO("../yolo/weights/best_v5.pt")
+            self.yolo_model = YOLO("../yolo/weights/best_v7.pt")
         detect_results = self.yolo_model.predict(source=image)
         result = []
         for r in detect_results:
@@ -282,8 +282,8 @@ class BarCodeDecoder:
                     result.append(str(data))
         elif decoder == "network":
             data = self.__decode_by_network(image)
-            if is_valid_ean13(data):
-                result.append(data)
+            # if is_valid_ean13(data):
+            result.append(data)
         else:
             raise Exception("unsupported decoder")
         # for data in result:
@@ -373,21 +373,18 @@ class BarCodeDecoder:
             image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
         lsd = cv.createLineSegmentDetector(0, scale=1)
         lines = lsd.detect(image)
+        if lines is None or len(lines) == 0 or lines[0] is None:
+            print("no lines detected")
+            return {90: 1}, []
         deg_dists = dict()
         for line in lines[0]:
-            x0 = int(round(line[0][0]))
-            y0 = int(round(line[0][1]))
-            x1 = int(round(line[0][2]))
-            y1 = int(round(line[0][3]))
+            x0, y0, x1, y1 = map(int, line[0])
             delta_y = y1 - y0
             delta_x = x1 - x0
             if delta_x == 0:
-                angle = 90.0
+                angle = 90
             else:
                 angle = round(math.degrees(math.atan2(delta_y, delta_x)))
             dist = round(math.dist((x0, y0), (x1, y1)))
-            if angle in deg_dists:
-                deg_dists[angle] += dist
-            else:
-                deg_dists[angle] = dist
+            deg_dists[angle] = deg_dists.get(angle, 0) + dist
         return deg_dists, lines[0]

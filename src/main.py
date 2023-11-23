@@ -32,7 +32,7 @@ def detectAll(isHalcon=False):
 
 def main():
     # yolo模型
-    yolo_model = YOLO("../yolo/weights/best_v5.pt")
+    yolo_model = YOLO("../yolo/weights/best_v7.pt")
     # 区域估计模型
     # re_model = CustomResNet()
     # re_model.load_state_dict(torch.load("../resnet/checkpoints/adam_best_v1.pt"))
@@ -43,14 +43,13 @@ def main():
     # sr_model.setModel("espcn", 2)
     # 条形码识别网络
     decode_network = DecodeNet()
-    decode_network.load_state_dict(torch.load("../decode_network/tune/resnet50_v0.4p_adam_best.pt"))
+    decode_network.load_state_dict(torch.load("../decode_network/tune/resnet50_v0.7p_adam_best.pt"))
     decode_network.eval()
-    decoder = BarCodeDecoder().set_decode_model(decode_network)
+    decoder = BarCodeDecoder().set_decode_model(decode_network).set_yolo_model(yolo_model)
 
     # decoder.set_yolo_model(yolo_model).set_sr_model(sr_model).set_re_model(re_model)
-
     decode_method = "network"
-    folder = "E:/work/barCode/20231116_img/"
+    folder = "E:/work/barCode/20231122_img/"
     detect_none_path = folder + "detect_none/"
     cropped_path = folder + "cropped/"
     rotated_path = folder + "rotated/"
@@ -67,6 +66,7 @@ def main():
     right_count = 0
     zbar_count, network_count = 0, 0
     t1 = time.time()
+    # file_set = get_rect()
     for idx, file in enumerate(files):
         # if idx >= 100:
         #     break
@@ -84,13 +84,17 @@ def main():
             #     result = decoder.decode(cropped, decoder=decode_method, save_rotated=True, save_dir=rotated_path)
             # result = decoder.detectAndDecode(file_path, decoder=decode_method)
             result, result_type = decoder.detectAndDecodeByNetwork(file_path)
+            if result_type is None:
+                shutil.copy(file_path, detect_none_path + file)
             if label in result:
+                print("right", end="\t")
                 right_count += 1
                 if result_type == "zbar":
                     zbar_count += 1
                 else:
                     network_count += 1
             else:
+                print("wrong", end="\t")
                 shutil.copy(file_path, unresolved_path + file)
             # if len(result) > 0:
             #     right_count += 1
@@ -104,6 +108,13 @@ def main():
     print("acc: ", right_count / all_count if all_count > 0 else 0)
     t2 = time.time()
     print("total time: %.4f ms, per image: %.4f ms" % ((t2 - t1) * 1000, (t2 - t1) * 1000 / all_count))
+
+
+def get_rect():
+    folder = "E:/work/barCode/20231119_img/"
+    rect_path = os.path.join(folder, "rect")
+    file_set = {file.replace("_rect", "") for file in os.listdir(rect_path)}
+    return file_set
 
 
 if __name__ == '__main__':
