@@ -2,6 +2,7 @@ import os
 import shutil
 import time
 
+import onnxruntime
 import torch
 from PIL import Image
 from torch import nn
@@ -39,18 +40,23 @@ def main():
         # mean: tensor([0.1742, 0.1742, 0.1742]), std: tensor([0.2561, 0.2561, 0.2561])
     ])
     batch_size = 32
-    root = "E:/work/barCode/net_dataset4/"
+    root = "E:/work/barCode/net_dataset5/"
+    root2 = "E:/work/barCode/net_dataset4/"
     out_dir = "tune/"
-    prefix = "resnet50_v1.1p_"
+    prefix = "resnet50_v0.7p_"
     os.makedirs(out_dir, exist_ok=True)
     train_data = BarCode(root_dir=root + "train", _transforms=preprocess)
+    train_data2 = BarCode(root_dir=root2 + "train_sub", _transforms=preprocess)
+    train_data = train_data + train_data2
     valid_data = BarCode(root_dir=root + "valid", _transforms=preprocess)
+    valid_data2 = BarCode(root_dir=root2 + "valid_sub", _transforms=preprocess)
+    valid_data = valid_data + valid_data2
 
     train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=True)
 
     model = DecodeNet()
-    model.load_state_dict(torch.load("tune/resnet50_v1.0p_adam_best.pt"))
+    model.load_state_dict(torch.load("tune/resnet50_v0.6p_adam_best.pt"))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
 
@@ -58,10 +64,10 @@ def main():
     criterion = nn.CrossEntropyLoss()
     learning_rate = 1e-5
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = StepLR(optimizer, step_size=5, gamma=0.1)
+    scheduler = StepLR(optimizer, step_size=3, gamma=0.5)
     epochs = 300
 
-    early_stop = 15
+    early_stop = 5
     best_count = 0
     best_epoch = 0
     max_acc = 0.0
@@ -126,11 +132,13 @@ def predict(save: bool = False):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
     model = DecodeNet()
-    model.load_state_dict(torch.load("tune/resnet50_v0.4p_adam_best.pt"))
+    model.load_state_dict(torch.load("tune/resnet50_v0.7p_adam_best.pt"))
     # model.load_state_dict(torch.load("tune/resnet50_v1.1p_adam_best.pt"))
     model.eval()
 
-    folder = "E:/work/barCode/20231116_img/rotated/"
+    out_session = onnxruntime.InferenceSession("onnx/resnet50_v0.7p_adam_best.onnx")
+
+    folder = "E:/work/barCode/20231120_img/folder_4/rotated/"
     unresolved_folder = folder + "unresolved/network/"
     if save:
         os.makedirs(unresolved_folder, exist_ok=True)
@@ -148,11 +156,13 @@ def predict(save: bool = False):
             img = Image.open(folder + file)
             input_img = preprocess(img)
             input_img = input_img.unsqueeze(0)
-            with torch.no_grad():
-                output = model(input_img)
+            # with torch.no_grad():
+            #     output = model(input_img)
+            output = out_session.run(["output"], {'input': input_img.numpy()})[0]
+            output = torch.from_numpy(output)
             output = output.view(-1, 13, 10)
             output = nn.functional.softmax(output, dim=-1)
-            result = modified_predict(output, max_error_bit=0)
+            result = modified_predict(output, max_error_bit=0, file_name=file)
             # _, predicted = torch.max(output, 2)
             # arr = predicted.squeeze().numpy()
             # result = "".join(map(str, arr))
@@ -182,7 +192,8 @@ def predict(save: bool = False):
     print("total time: %s ms, per image: %s ms" % ((t2 - t1) * 1000, (t2 - t1) * 1000 / all_count))
 
 
-def modified_predict(logit: torch.Tensor, max_error_bit: int = 0) -> str:
+def modified_predict(logit: torch.Tensor, max_error_bit: int = 0, file_name: str = "") -> str:
+    file_name1 = file_name
     logit = logit.squeeze()
     top2_list = []
     diff_dict = dict()
@@ -219,6 +230,19 @@ def modified_predict(logit: torch.Tensor, max_error_bit: int = 0) -> str:
     return ""
 
 
+def cvtToOnnx():
+    model = DecodeNet()
+    model.load_state_dict(torch.load("tune/resnet50_v0.7p_adam_best.pt"))
+    model.eval()
+    batch_size = 1
+    input_shape = (3, 224, 224)
+    dummy_input = torch.randn(batch_size, *input_shape)
+
+    torch.onnx.export(model, dummy_input, "onnx/resnet50_v0.7p_adam_best.onnx", verbose=True, input_names=["input"],
+                      output_names=["output"])
+
+
 if __name__ == '__main__':
     # main()
     predict(save=False)
+    # cvtToOnnx()
