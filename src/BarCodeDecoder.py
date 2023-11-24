@@ -4,6 +4,7 @@ from typing import Any
 
 import cv2 as cv
 import halcon
+import onnxruntime
 import pyzbar.pyzbar as pyzbar
 import pyzxing
 import torch
@@ -35,6 +36,7 @@ class BarCodeDecoder:
         self.re_model = re_model
         self.sr_model = sr_model
         self.decode_model = decode_model
+        self.decode_session = None
         # 图片
         self._image = None
         # 图片路径，用于保存中间结果
@@ -196,6 +198,9 @@ class BarCodeDecoder:
                 else:
                     save_name = file_name.replace(ext, "_rotated_" + str(idx) + ".png")
                     cv.imwrite(save_dir + "/" + save_name, src, [cv.IMWRITE_PNG_COMPRESSION, 0])
+            # cv.imshow("rotated", src)
+            # cv.waitKey(0)
+            # cv.destroyAllWindows()
             result1 = self._decode(src, decoder)
             # if not result1:
             #     result1 = self._decode_after_optimization(src, decoder)
@@ -307,15 +312,19 @@ class BarCodeDecoder:
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             ])
+        if self.decode_session is None:
+            self.decode_session = onnxruntime.InferenceSession("../decode_network/onnx/resnet50_v0.7p_adam_best.onnx")
         input_image = Image.fromarray(cv.cvtColor(image, cv.COLOR_BGR2RGB))
         # input_image = Image.fromarray(image)
         # cv.imwrite("temp.png", image, [cv.IMWRITE_PNG_COMPRESSION, 0])
         # input_image = Image.open("temp.png")
         input_image = self.resnet_preprocess(input_image)
         input_image = input_image.unsqueeze(0)
-        with torch.no_grad():
-            self.decode_model.eval()
-            output = self.decode_model(input_image)
+        # with torch.no_grad():
+        #     self.decode_model.eval()
+        #     output = self.decode_model(input_image)
+        output = self.decode_session.run(["output"], {'input': input_image.numpy()})[0]
+        output = torch.from_numpy(output)
         # _, output = output.split([4, 130], dim=1)
         # output = output.reshape(-1, 13, 10)
         output = output.view(-1, 13, 10)
