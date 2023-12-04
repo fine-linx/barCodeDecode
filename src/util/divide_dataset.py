@@ -4,14 +4,14 @@ import random
 import shutil
 
 # 设置随机数种子
-random.seed(213)
+random.seed(223)
 
 # 定义文件夹路径
-root_dir = "D:/work/barCodeDecode/yolo/datasets/barCode/all"
+root_dir = "E:/work/barCode/net_dataset_v1/"
 # image_dir = root_dir
 image_dir = os.path.join(root_dir, 'images')
 label_dir = os.path.join(root_dir, 'labels')
-output_dir = "D:/work/barCodeDecode/yolo/datasets/barCode"
+output_dir = root_dir
 # output_dir = "E:/work/barCode/net_dataset3/resolved"
 # 定义训练集、验证集和测试集比例
 train_ratio = 0.8

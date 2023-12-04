@@ -1,6 +1,7 @@
 import os
 import shutil
 import time
+from functools import partial
 
 import onnxruntime
 import torch
@@ -8,10 +9,11 @@ from PIL import Image
 from torch import nn
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
-from torchvision import transforms
+from torchvision import transforms, models
 
-from BarCode import BarCode
-from DecodeNet import DecodeNet
+from BarCode import BarCode, BarCodeBinary
+from DecodeNet import DecodeNet, DecodeNetBinary, DecodeNetGhost
+from GhostNetV2 import ghostnetv2
 
 
 def is_valid_ean13(barcode):
@@ -29,49 +31,78 @@ def is_valid_ean13(barcode):
     return int(barcode[12]) == checksum
 
 
-def main():
+def main(isBinary=False):
     # 定义图像预处理转换，确保与模型的输入匹配
     preprocess = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        # transforms.Normalize(mean=[0.173, 0.173, 0.173], std=[0.254, 0.254, 0.254])  # 训练集的数据
+        # transforms.Normalize(mean=[0.1817, 0.1817, 0.1817], std=[0.2562, 0.2562, 0.2562])  # 训练集的数据
         # 验证集数据
         # mean: tensor([0.1742, 0.1742, 0.1742]), std: tensor([0.2561, 0.2561, 0.2561])
     ])
     batch_size = 32
-    root = "E:/work/barCode/net_dataset5/"
-    root2 = "E:/work/barCode/net_dataset4/"
-    out_dir = "tune/"
-    prefix = "resnet50_v0.7p_"
+    root = "E:/work/barCode/net_dataset_v1/"
+    # root2 = "E:/work/barCode/net_dataset4/"
+    if isBinary:
+        out_dir = "predict_binary/"
+        prefix = "resnet50_cropped_v0.2p_"
+    else:
+        out_dir = "tune/"
+        prefix = "ghostnetv2_v0.2p_"
     os.makedirs(out_dir, exist_ok=True)
-    train_data = BarCode(root_dir=root + "train", _transforms=preprocess)
-    train_data2 = BarCode(root_dir=root2 + "train_sub", _transforms=preprocess)
-    train_data = train_data + train_data2
-    valid_data = BarCode(root_dir=root + "valid", _transforms=preprocess)
-    valid_data2 = BarCode(root_dir=root2 + "valid_sub", _transforms=preprocess)
-    valid_data = valid_data + valid_data2
+    if isBinary:
+        train_data = BarCodeBinary(root_dir=root + "train", _transforms=preprocess)
+        # train_data2 = BarCodeBinary(root_dir=root2 + "train_sub", _transforms=preprocess)
+        valid_data = BarCodeBinary(root_dir=root + "valid", _transforms=preprocess)
+        # valid_data2 = BarCodeBinary(root_dir=root2 + "valid_sub", _transforms=preprocess)
+    else:
+        train_data = BarCode(root_dir=root + "train", _transforms=preprocess)
+        # train_data2 = BarCode(root_dir=root2 + "train_sub", _transforms=preprocess)
+        valid_data = BarCode(root_dir=root + "valid", _transforms=preprocess)
+        # valid_data2 = BarCode(root_dir=root2 + "valid_sub", _transforms=preprocess)
+    # train_data = train_data + train_data2
+    # valid_data = valid_data + valid_data2
 
     train_dataloader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     valid_dataloader = DataLoader(valid_data, batch_size=batch_size, shuffle=True)
 
-    model = DecodeNet()
-    model.load_state_dict(torch.load("tune/resnet50_v0.6p_adam_best.pt"))
+    if isBinary:
+        model = DecodeNetBinary(final_drop=0.2)
+        # model = DecodeNetGhost()
+        # model = partial(ghostnetv2, model_name="1x", final_drop=0.5, num_classes=84)()
+        # model.load_state_dict(torch.load("predict_binary/ghostnetv2_v0.1p_adam_best.pt"))
+        # model.load_state_dict(torch.load("predict_binary/resnet50_cropped_v0.1p_adam_best.pt"))
+        # model = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.DEFAULT)
+        # model.classifier = nn.Sequential(
+        #     nn.Dropout(0.2, inplace=True),
+        #     nn.Linear(1280, 84, bias=True),
+        #     nn.Sigmoid()
+        # )
+        # model.load_state_dict(torch.load("predict_binary/efficientNet_v0.2p_adam_best.pt"))
+    else:
+        model = DecodeNet()
+        # model.load_state_dict(torch.load("tune/resnet50_v0.8p_adam_best.pt"))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
 
     # 超参
-    criterion = nn.CrossEntropyLoss()
-    learning_rate = 1e-5
+    if isBinary:
+        # criterion = nn.MSELoss(reduction="mean")
+        criterion = nn.BCELoss(reduction="mean")
+    else:
+        criterion = nn.CrossEntropyLoss()
+    learning_rate = 1e-3
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = StepLR(optimizer, step_size=3, gamma=0.5)
-    epochs = 300
+    scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
+    epochs = 200
 
-    early_stop = 5
+    early_stop = 11
     best_count = 0
     best_epoch = 0
     max_acc = 0.0
     for epoch in range(epochs):
+        t1 = time.time()
         if best_count >= early_stop:
             print("early stop")
             break
@@ -84,10 +115,14 @@ def main():
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(images)
-            outputs = outputs.view(-1, 10)
-            outputs = nn.functional.softmax(outputs, dim=-1)
-            labels = labels.view(-1)
-            loss = criterion(outputs, labels)
+            if isBinary:
+                outputs = outputs.squeeze()
+                loss = criterion(outputs, labels)
+            else:
+                outputs = outputs.view(-1, 10)
+                outputs = nn.functional.softmax(outputs, dim=-1)
+                labels = labels.view(-1)
+                loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
 
@@ -103,9 +138,13 @@ def main():
                 model.eval()
                 images, labels = images.to(device), labels.to(device)
                 outputs = model(images)
-                outputs = outputs.view(-1, 13, 10)
-                outputs = nn.functional.softmax(outputs, dim=-1)
-                _, predicted = torch.max(outputs, 2)
+                if isBinary:
+                    outputs = outputs.squeeze()
+                    predicted = torch.where(outputs > 0.5, torch.ones_like(outputs), torch.zeros_like(outputs))
+                else:
+                    outputs = outputs.view(-1, 13, 10)
+                    outputs = nn.functional.softmax(outputs, dim=-1)
+                    _, predicted = torch.max(outputs, 2)
                 are_equal = torch.eq(predicted, labels)
                 all_equal = torch.all(are_equal, dim=1)
                 correct = all_equal.sum().item()
@@ -122,17 +161,23 @@ def main():
             best_epoch = epoch
             max_acc = accuracy
         scheduler.step()
+        t2 = time.time()
+        print(f"Epoch {epoch + 1} cost time: {t2 - t1} s")
     print(f"best epoch: {best_epoch + 1}, accuracy: {max_acc}")
 
 
-def predict(save: bool = False):
+def predict(save: bool = False, isBinary=False):
     preprocess = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
-    model = DecodeNet()
-    model.load_state_dict(torch.load("tune/resnet50_v0.7p_adam_best.pt"))
+    if isBinary:
+        model = DecodeNetBinary()
+        model.load_state_dict(torch.load("predict_binary/resnet50_v0.2p_adam_best.pt"))
+    else:
+        model = DecodeNet()
+        model.load_state_dict(torch.load("tune/resnet50_v0.7p_adam_best.pt"))
     # model.load_state_dict(torch.load("tune/resnet50_v1.1p_adam_best.pt"))
     model.eval()
 
@@ -243,6 +288,6 @@ def cvtToOnnx():
 
 
 if __name__ == '__main__':
-    # main()
-    predict(save=False)
+    main(isBinary=True)
+    # predict(save=False)
     # cvtToOnnx()

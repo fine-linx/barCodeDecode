@@ -1,9 +1,11 @@
+import logging
 import math
 import os.path
 from typing import Any
 
 import cv2 as cv
 import halcon
+import numpy as np
 import onnxruntime
 import pyzbar.pyzbar as pyzbar
 import pyzxing
@@ -18,7 +20,8 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from decode_network.DecodeNet import DecodeNet
+from decode_network.utils.utils import ENCODE_MAP, FIRST_DIGIT_MAP
+from decode_network.DecodeNet import DecodeNet, DecodeNetBinary
 from src.util.constants import IMAGE_MIN_SIDE
 from src.util.util import resize, is_valid_ean13
 from unified_network.DetNet import DetNet
@@ -87,7 +90,7 @@ class BarCodeDecoder:
                 print("no detection\t", source)
         return result
 
-    def detectAndDecodeByNetwork(self, source: str) -> tuple[list[str | None], str | None]:
+    def detectAndDecodeByNetwork(self, source: str, decoder: str = "network") -> tuple[list[str | None], str | None]:
         self._image_path = source
         boxes = self.detect(source)
         result_type = "zbar"
@@ -95,10 +98,10 @@ class BarCodeDecoder:
             print("no detection\t", source)
             return [], None
         cropped = self.crop(boxes, confidence=0.25)
-        result = self.decode(cropped, decoder="zbar")
-        if not result:
-            result = self.decode(cropped, "network")
-            result_type = "network"
+        # result = self.decode(cropped, decoder="zbar")
+        # if not result:
+        result = self.decode(cropped, decoder=decoder, rotate=False)
+        result_type = "network"
         return result, result_type
 
     def detect(self, source: str, save_rect: bool = False, save_dir: str = None) -> list[dict[str, int | float]]:
@@ -198,9 +201,6 @@ class BarCodeDecoder:
                 else:
                     save_name = file_name.replace(ext, "_rotated_" + str(idx) + ".png")
                     cv.imwrite(save_dir + "/" + save_name, src, [cv.IMWRITE_PNG_COMPRESSION, 0])
-            # cv.imshow("rotated", src)
-            # cv.waitKey(0)
-            # cv.destroyAllWindows()
             result1 = self._decode(src, decoder)
             # if not result1:
             #     result1 = self._decode_after_optimization(src, decoder)
@@ -278,7 +278,8 @@ class BarCodeDecoder:
             res = pyzbar.decode(image)
             for r in res:
                 data = r.data.decode("utf-8")
-                result.append(data)
+                if is_valid_ean13(data):
+                    result.append(data)
         elif decoder == "zxing":
             barcode = self.zxing_reader.decode_array(image)
             if barcode:
@@ -286,8 +287,11 @@ class BarCodeDecoder:
                 if data:
                     result.append(str(data))
         elif decoder == "network":
-            data = self.__decode_by_network(image)
+            data = self.__decode_by_network(image, isBinary=False)
             # if is_valid_ean13(data):
+            result.append(data)
+        elif decoder == "network_binary":
+            data = self.__decode_by_network(image, isBinary=True)
             result.append(data)
         else:
             raise Exception("unsupported decoder")
@@ -300,10 +304,15 @@ class BarCodeDecoder:
         #         cv.imwrite(save_name, image, [cv.IMWRITE_PNG_COMPRESSION, 0])
         return result
 
-    def __decode_by_network(self, image: ndarray):
+    def __decode_by_network(self, image: ndarray, isBinary: bool = False):
         if self.decode_model is None:
-            self.decode_model = DecodeNet()
-            self.decode_model.load_state_dict(torch.load("../decode_network/tune/resnet50_v0.4p_adam_best.pt"))
+            if isBinary:
+                self.decode_model = DecodeNetBinary()
+                self.decode_model.load_state_dict(
+                    torch.load("../decode_network/predict_binary/resnet50_cropped_v0.2p_adam_best.pt"))
+            else:
+                self.decode_model = DecodeNet()
+                self.decode_model.load_state_dict(torch.load("../decode_network/tune/resnet50_v0.8p_adam_best.pt"))
             # self.decode_model = DetNet()
             # self.decode_model.load_state_dict(torch.load("../unified_network/tune/resnet50_v0.2_adam_best.pt"))
         if self.resnet_preprocess is None:
@@ -314,25 +323,60 @@ class BarCodeDecoder:
             ])
         if self.decode_session is None:
             self.decode_session = onnxruntime.InferenceSession("../decode_network/onnx/resnet50_v0.7p_adam_best.onnx")
+        # cv.imshow("rotated", image)
+        # cv.waitKey(0)
+        # cv.destroyAllWindows()
         input_image = Image.fromarray(cv.cvtColor(image, cv.COLOR_BGR2RGB))
         # input_image = Image.fromarray(image)
         # cv.imwrite("temp.png", image, [cv.IMWRITE_PNG_COMPRESSION, 0])
         # input_image = Image.open("temp.png")
         input_image = self.resnet_preprocess(input_image)
         input_image = input_image.unsqueeze(0)
-        # with torch.no_grad():
-        #     self.decode_model.eval()
-        #     output = self.decode_model(input_image)
-        output = self.decode_session.run(["output"], {'input': input_image.numpy()})[0]
-        output = torch.from_numpy(output)
+        with torch.no_grad():
+            self.decode_model.eval()
+            output = self.decode_model(input_image)
+        # output = self.decode_session.run(["output"], {'input': input_image.numpy()})[0]
+        # output = torch.from_numpy(output)
         # _, output = output.split([4, 130], dim=1)
         # output = output.reshape(-1, 13, 10)
-        output = output.view(-1, 13, 10)
-        output = nn.functional.softmax(output, dim=-1)
-        _, predicted = torch.max(output, 2)
-        arr = predicted.squeeze().cpu().numpy()
-        result = "".join(map(str, arr))
+        if isBinary:
+            output = output.squeeze()
+            grouped_output = output.view(-1, 7)
+            predicted = torch.where(output > 0.5, torch.ones_like(output), torch.zeros_like(output))
+            # 将张量中的值转换为整数类型，并将整数类型转换为字符串列表
+            binary_strings = [str(int(value)) for value in predicted]
+            # 将字符串列表中的元素连接起来，得到一个二进制字符串
+            binary_string = ''.join(binary_strings)
+            result = self.__get_ean13(binary_string)
+        else:
+            output = output.view(-1, 13, 10)
+            output = nn.functional.softmax(output, dim=-1)
+            _, predicted = torch.max(output, 2)
+            arr = predicted.squeeze().cpu().numpy()
+            result = "".join(map(str, arr))
         return result
+
+    @staticmethod
+    def __get_ean13(binary_string: str):
+        left_format = []
+        decoded_string = []
+
+        grouped_digits = [binary_string[i:i + 7] for i in range(0, len(binary_string), 7)]
+
+        for idx, group in enumerate(grouped_digits):
+            for key, value in ENCODE_MAP.items():
+                if group in value:
+                    index = value.index(group)
+                    decoded_string.append(key)
+                    left_format.append("OEE"[index])
+                    break
+            else:
+                logging.error(f"未识别条形码, digit {idx + 1}")
+                decoded_string.append("X")
+                left_format.append("X")
+
+        first_digit = FIRST_DIGIT_MAP.get(''.join(left_format[:6]))
+        return str(first_digit) + ''.join(decoded_string)
 
     def __appendResult(self, data):
         if data in self.decode_result:

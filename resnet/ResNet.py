@@ -1,4 +1,6 @@
+import logging
 import os
+import time
 
 import cv2 as cv
 import torch
@@ -18,15 +20,19 @@ preprocess = transforms.Compose([
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
-folder = "E:/work/barCode/net_dataset3/"
-label_folder = folder + "label/"
-rect_folder = folder + "rect/"
+folder = "E:/work/barCode/net_dataset4/train/"
+label_folder = "E:/work/barCode/net_dataset4/train_cropped_labels/"
+rect_folder = "E:/work/barCode/net_dataset4/train_cropped/"
 os.makedirs(rect_folder, exist_ok=True)
 os.makedirs(label_folder, exist_ok=True)
 files = os.listdir(folder)
 offset = 5
+t1 = time.time()
+file_count = 0
 for file in files:
     if file.endswith(".png"):
+        file_count += 1
+        print(file_count)
         img = Image.open(folder + file)
         input_img = preprocess(img)
         input_img = input_img.unsqueeze(0)
@@ -43,5 +49,9 @@ for file in files:
         x2 = min(width * value1 + 0.5 * width * value3 + offset, width)
         y1 = max(height * value2 - 0.5 * height * value4 - offset, 0)
         y2 = min(height * value2 + 0.5 * height * value4 + offset, height)
-        img_cv = cv.rectangle(img_cv, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-        cv.imwrite(folder + "rect/" + file, img_cv, [cv.IMWRITE_PNG_COMPRESSION, 0])
+        # img_cv = cv.rectangle(img_cv, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+        # cv.imwrite(rect_folder + file, img_cv, [cv.IMWRITE_PNG_COMPRESSION, 0])
+        img_cv = img_cv[int(y1):int(y2), int(x1):int(x2)]
+        cv.imwrite(rect_folder + file, img_cv, [cv.IMWRITE_PNG_COMPRESSION, 0])
+t2 = time.time()
+print("total time: %.4f ms, per image: %.4f ms" % ((t2 - t1) * 1000, (t2 - t1) * 1000 / len(files)))

@@ -8,8 +8,8 @@ from skimage import util as sk_util
 if __name__ == '__main__':
     # 读取图片
     data_type = "valid/"
-    folder = "E:/work/barCode/net_dataset3/" + data_type
-    target_folder = "E:/work/barCode/net_dataset4/" + data_type
+    folder = "E:/work/barCode/20231119_img/rotated/"
+    target_folder = "E:/work/barCode/net_dataset5/"
     os.makedirs(target_folder, exist_ok=True)
     files = os.listdir(folder)
     kernel = np.ones((3, 3), np.uint8)

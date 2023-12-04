@@ -3,10 +3,12 @@ import os
 import shutil
 from collections import Counter
 
+import cv2
+
 
 def main():
-    folder = "E:/work/barCode/20231116_json/"
-    image_folder = "E:/work/barCode/20231116_img/"
+    folder = "E:/work/barCode/20231130_json1/"
+    image_folder = "E:/work/barCode/20231130_img/"
     result_folder = os.path.join(image_folder, "results")
 
     if not os.path.exists(result_folder):
@@ -30,8 +32,17 @@ def main():
                     try:
                         shutil.move(os.path.join(image_folder, img_name), os.path.join(result_folder, new_img_name))
                     except FileNotFoundError:
-                        print("not found  ", img_name)
+                        print(file, " not found ", img_name)
+
+
+def bmp2jpg():
+    folder = "E:/work/barCode/20231122_img/"
+    for file in os.listdir(folder):
+        image = cv2.imread(os.path.join(folder, file))
+        cv2.imwrite(os.path.join(folder, file.replace(".bmp", ".jpg")), image)
+        os.remove(os.path.join(folder, file))
 
 
 if __name__ == "__main__":
     main()
+    # bmp2jpg()

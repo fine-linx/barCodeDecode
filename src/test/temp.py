@@ -1,61 +1,28 @@
-# coding=utf-8
-# 导入python包
 import cv2
-import imutils
 import numpy as np
 
+# 1. 加载图像
+image = cv2.imread('../../db/20231019/folder_1/rotated/20231019073605330048_S_02_rotated_0.png')
 
-def main(file_path):
-    # 读取图片并将其转化为灰度图片
-    image = cv2.imread(file_path)
-    image1 = image.copy()
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+# 图像尺寸
+height, width, _ = image.shape
 
-    # 计算图像中x和y方向的Scharr梯度幅值表示
-    ddepth = cv2.CV_32F
-    gradX = cv2.Sobel(gray, ddepth=ddepth, dx=1, dy=0, ksize=-1)
-    gradY = cv2.Sobel(gray, ddepth=ddepth, dx=0, dy=1, ksize=-1)
+# 设置反光区域
+reflection_intensity = 0.7  # 反光强度
+reflection_size = 50  # 反光区域的大小
 
-    # x方向的梯度减去y方向的梯度
-    gradient = cv2.subtract(gradX, gradY)
-    # 获取处理后的绝对值
-    gradient = cv2.convertScaleAbs(gradient)
-    cv2.imwrite("gradient.png", gradient)
+# 生成反光噪声
+reflection = np.zeros_like(image, dtype=np.uint8)
+cv2.rectangle(reflection, (width // 2, 0), (width // 2 + reflection_size, height), (255, 255, 255), -1)
+blurred_reflection = cv2.GaussianBlur(reflection, (25, 25), 0)  # 模糊反光区域
+blurred_reflection = blurred_reflection.astype(np.uint8) * reflection_intensity  # 转换类型并根据强度调整反光的亮度
 
-    # 对处理后的结果进行模糊操作
-    blurred = cv2.blur(gradient, (9, 9))
-    # 将其转化为二值图片
-    (_, thresh) = cv2.threshold(blurred, 225, 255, cv2.THRESH_BINARY)
-    cv2.imwrite("thresh.png", thresh)
+# 将反光添加到图像上
+blurred_reflection = blurred_reflection.astype(image.dtype)  # 调整数据类型与原图像相同
+noisy_image = cv2.addWeighted(image, 1, blurred_reflection, 1, 0)
 
-    # 构建一个掩码并将其应用在二值图片中
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (21, 7))
-    closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-    cv2.imwrite("closed1.png", closed)
-
-    # 执行多次膨胀和腐蚀操作
-    closed = cv2.erode(closed, None, iterations=4)
-    closed = cv2.dilate(closed, None, iterations=4)
-    cv2.imwrite("closed2.png", closed)
-
-    # 在二值图像中寻找轮廓, 然后根据他们的区域大小对该轮廓进行排序，保留最大的一个轮廓
-    cnts = cv2.findContours(closed.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cnts = imutils.grab_contours(cnts)
-    c = sorted(cnts, key=cv2.contourArea, reverse=True)[0]
-
-    # 计算最大的轮廓的最小外接矩形
-    rect = cv2.minAreaRect(c)
-    box = cv2.cv.BoxPoints(rect) if imutils.is_cv2() else cv2.boxPoints(rect)
-    box = np.int0(box)
-
-    # 绘制并显示结果
-    cv2.drawContours(image1, [box], -1, (0, 255, 0), 3)
-    result = np.hstack([image, image1])
-    cv2.imwrite("detect1.png", result)
-    cv2.imshow("Image", result)
-    cv2.waitKey(0)
-
-
-if __name__ == '__main__':
-    file = "C:/Users/PC/Desktop/8033873185026_2.JPG"
-    main(file)
+# 显示原始图像和带反光噪声的图像
+cv2.imshow('Original Image', image)
+cv2.imshow('Image with Reflection Noise', noisy_image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
